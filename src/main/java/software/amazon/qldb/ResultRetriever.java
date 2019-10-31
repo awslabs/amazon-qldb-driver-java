@@ -1,0 +1,253 @@
+/*
+ * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
+ * the License. A copy of the License is located at
+ *
+ * http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+ * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+package software.amazon.qldb;
+
+import java.nio.ByteBuffer;
+import java.util.NoSuchElementException;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
+import com.amazonaws.services.qldbsession.model.Page;
+
+import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.QldbClientException;
+
+/**
+ * Used to retrieve the results from QLDB, either asynchronously or synchronously.
+ *
+ * If configured to read asynchronously, a thread will be created which will read ahead of the current position and
+ * buffer chunks of data up to the configured readAhead setting. {@link #next()} will pause if the retrieval thread is
+ * still retrieving the next chunk of data when it is needed.
+ *
+ * If configured to read synchronously, then the next chunk of data will be retrieved from QLDB during the call to
+ * {@link #next()} when it has exhausted the current chunk of data.
+ */
+class ResultRetriever {
+    private static final Logger logger = LoggerFactory.getLogger(ResultRetriever.class);
+
+    private Page currentPage;
+    private int currentResultValueIndex;
+
+    private final Retriever retriever;
+    private final IonSystem ionSystem;
+    private final ExecutorService executorService;
+
+    /**
+     * Constructor.
+     *
+     * @param session
+     *              The parent session that represents the communication channel to QLDB.
+     * @param firstPage
+     *              The first chunk of the result, returned by the initial execution.
+     * @param txnId
+     *              The unique ID of the transaction.
+     * @param readAhead
+     *              The number of buffers to asynchronously read ahead, 0 for synchronous retrieval.
+     * @param executorService
+     *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
+     */
+    public ResultRetriever(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
+                           ExecutorService executorService) {
+        Validate.assertIsNotNegative(readAhead, "readAhead");
+
+        this.currentPage = firstPage;
+        this.currentResultValueIndex = 0;
+        this.ionSystem = ionSystem;
+        this.executorService = executorService;
+
+        // Start the retriever thread if there are more chunks to retrieve.
+        if (currentPage.getNextPageToken() == null) {
+            this.retriever = null;
+        } else if (0 == readAhead) {
+            this.retriever = new Retriever(session, txnId, currentPage.getNextPageToken());
+        } else {
+            final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId, currentPage.getNextPageToken(),
+                    readAhead);
+            this.retriever = runner;
+
+            if (null == executorService) {
+                final Thread retrieverThread = new Thread(runner, "ResultRetriever");
+                retrieverThread.setDaemon(true);
+                retrieverThread.start();
+            } else {
+                this.executorService.submit(runner);
+            }
+        }
+    }
+
+    /**
+     * Indicate if there are any more data to be retrieved.
+     *
+     * @return {@code true} if there is more data and {@link #next()} will return an IonValue; {@code false} otherwise.
+     */
+    public synchronized boolean hasNext() {
+        while (currentResultValueIndex >= currentPage.getValues().size()) {
+            if (null == currentPage.getNextPageToken()) {
+                return false;
+            }
+            currentPage = retriever.getNextPage();
+            currentResultValueIndex = 0;
+        }
+        return true;
+    }
+
+    /**
+     * Retrieve the next IonValue in the result. Note that this should only be called if {@link #hasNext()} returns true.
+     *
+     * @return The next IonValue in the result.
+     * @throws NoSuchElementException if the iteration has no more elements.
+     */
+    public synchronized IonValue next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
+
+        final ByteBuffer bytes = currentPage.getValues().get(currentResultValueIndex++).getIonBinary();
+        return ionSystem.singleValue(bytes.array());
+    }
+
+    /**
+     * Explicitly release and resources held by the result.
+     */
+    void close() {
+        if (null != this.retriever) {
+            this.retriever.close();
+        }
+    }
+
+    /**
+     * Basic object for retrieving the next chunk of data from QLDB for a result set.
+     */
+    private static class Retriever {
+        final Session session;
+        private final String txnId;
+        String nextPageToken;
+
+        /**
+         * Constructor for creating the retriever for a specific session and result.
+         *
+         * @param session
+         *              The parent session to use in retrieving results.
+         * @param txnId
+         *              The unique ID of the transaction.
+         * @param nextPageToken
+         *              The unique token identifying the next chunk of data to fetch for this result set.
+         */
+        private Retriever(Session session, String txnId, String nextPageToken) {
+            this.session = session;
+            this.txnId = txnId;
+            this.nextPageToken = nextPageToken;
+        }
+
+        /**
+         * Retrieve the next chunk of data from QLDB.
+         *
+         * @return The next chunk of data from QLDB.
+         * @throws QldbClientException if an unexpected error occurs during result retrieval.
+         */
+         Page getNextPage() {
+            final Page result = session.sendFetchPage(txnId, nextPageToken);
+            nextPageToken = result.getNextPageToken();
+            return result;
+        }
+
+        /**
+         * Explicitly release and resources held by the result.
+         */
+        void close() {
+            // No-op for the base class.
+        }
+    }
+
+    private static class ResultRetrieverRunnable extends Retriever implements Runnable {
+        private final BlockingDeque<ResultHolder<Exception>> results;
+        private final int readAhead;
+        private final AtomicBoolean isRunning;
+
+        /**
+         * Constructor for the Runnable responsible for asynchronous retrieval of results from QLDB.
+         *
+         * @param session
+         *              The parent session to use in retrieving results.
+         * @param txnId
+         *              The unique ID of the transaction.
+         * @param nextPageToken
+         *              The unique token identifying the next chunk of data to fetch for this result set.
+         * @param readAhead
+         *              The maximum number of chunks of data to buffer at any one time.
+         */
+        ResultRetrieverRunnable(Session session, String txnId, String nextPageToken, int readAhead) {
+            super(session, txnId, nextPageToken);
+            this.readAhead = Math.min(1, readAhead - 1);
+            this.results = new LinkedBlockingDeque<>(readAhead);
+            this.isRunning = new AtomicBoolean(true);
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (null != nextPageToken) {
+                    final Page page = super.getNextPage();
+                    try {
+                        while (!results.offer(new ResultHolder(page), 50, TimeUnit.MILLISECONDS)) {
+                            if (!this.isRunning.get()) {
+                                throw QldbClientException.create(Errors.RESULT_PARENT_INACTIVE.get(), session.getToken(), logger);
+                            }
+                            Thread.yield();
+                        }
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie, logger);
+                    }
+                }
+            } catch (Exception e) {
+                results.clear();
+                if (!results.offerFirst(new ResultHolder<>(e))) {
+                    // We've failed to give back the exception; log it as a best case fallback.
+                    logger.error(String.format(Errors.QUEUE_CAPACITY.get(), readAhead), e);
+                }
+            }
+        }
+
+        @Override
+        Page getNextPage() {
+            try {
+                final ResultHolder<Exception> result = results.take();
+                if (null != result.getAssociatedValue()) {
+                    if (result.getAssociatedValue() instanceof RuntimeException) {
+                        throw (RuntimeException) result.getAssociatedValue();
+                    }
+                    throw new RuntimeException(result.getAssociatedValue());
+                }
+
+                return result.getResult();
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie, logger);
+            }
+        }
+
+        @Override
+        void close() {
+            this.isRunning.set(false);
+        }
+    }
+}
