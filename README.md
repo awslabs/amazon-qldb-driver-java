@@ -47,9 +47,7 @@ public final class Constants {
 ```
 * See the complete code of the [Constants.java](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/Constants.java) class in the [Amazon QLDB Department of Motor Vehicles Sample App](https://github.com/aws-samples/amazon-qldb-dmv-sample-java) GitHub repository.
 
-Then we can create a ledger database as follows:
-
-- Create a class to describe a ledger database:
+Then we can create a ledger database. First create a class to describe a ledger database:
 ```java
 package software.amazon.qldb.tutorial;
 
@@ -99,12 +97,90 @@ public final class DescribeLedger {
 }
 
 ```
-Link to the [DescribeLedger](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/DescribeLedger.java) class.
+- Link to the [DescribeLedger](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/DescribeLedger.java) class.
 
 
-- Then create a class to Create a ledger database:
+Then create a class to Create a ledger database:
 ```java
-0
+package software.amazon.qldb.tutorial;
+
+import com.amazonaws.services.qldb.AmazonQLDB;
+import com.amazonaws.services.qldb.AmazonQLDBClientBuilder;
+import com.amazonaws.services.qldb.model.CreateLedgerRequest;
+import com.amazonaws.services.qldb.model.CreateLedgerResult;
+import com.amazonaws.services.qldb.model.DescribeLedgerResult;
+import com.amazonaws.services.qldb.model.LedgerState;
+import com.amazonaws.services.qldb.model.PermissionsMode;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public final class CreateLedger {
+    public static final Logger log = LoggerFactory.getLogger(CreateLedger.class);
+    public static final Long LEDGER_CREATION_POLL_PERIOD_MS = 10_000L;
+    public static AmazonQLDB client = getClient();
+
+    private CreateLedger() {
+    }
+
+    /**
+     * Build a low-level QLDB client.
+     *
+     * @return {@link AmazonQLDB} control plane client.
+     */
+    public static AmazonQLDB getClient() {
+        return AmazonQLDBClientBuilder.standard().build();
+    }
+
+    public static void main(final String... args) throws Exception {
+        try {
+
+            create(Constants.LEDGER_NAME);
+
+            waitForActive(Constants.LEDGER_NAME);
+
+        } catch (Exception e) {
+            log.error("Unable to create the ledger!", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Create a new ledger with the specified ledger name.
+     *
+     * @param ledgerName Name of the ledger to be created.
+     * @return {@link CreateLedgerResult} from QLDB.
+     */
+    public static CreateLedgerResult create(final String ledgerName) {
+        log.info("Let's create the ledger with name: {}...", ledgerName);
+        CreateLedgerRequest request = new CreateLedgerRequest().withName(ledgerName)
+                .withPermissionsMode(PermissionsMode.ALLOW_ALL);
+        CreateLedgerResult result = client.createLedger(request);
+        log.info("Success. Ledger state: {}.", result.getState());
+        return result;
+    }
+
+    /**
+     * Wait for a newly created ledger to become active.
+     *
+     * @param ledgerName Name of the ledger to wait on.
+     * @return {@link DescribeLedgerResult} from QLDB.
+     * @throws InterruptedException if thread is being interrupted.
+     */
+    public static DescribeLedgerResult waitForActive(final String ledgerName) throws InterruptedException {
+        log.info("Waiting for ledger to become active...");
+        while (true) {
+            DescribeLedgerResult result = DescribeLedger.describe(ledgerName);
+            if (result.getState().equals(LedgerState.ACTIVE.name())) {
+                log.info("Success. Ledger is active and ready to use.");
+                return result;
+            }
+            log.info("The ledger is still creating. Please wait...");
+            Thread.sleep(LEDGER_CREATION_POLL_PERIOD_MS);
+        }
+    }
+}
+
 ```
 * Full code to create a ledger database of the sample app is in the class [CreateLedger.java](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/CreateLedger.java).
 
@@ -184,7 +260,7 @@ public final class ConnectToLedger {
 }
 
 ```
-* See the full class to connect to the ledger in the [/ConnectToLedger.java](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/ConnectToLedger.java) class.
+* See the full class to connect to the ledger in the [ConnectToLedger.java](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/ConnectToLedger.java) class.
 
 
 ### Creating a table
@@ -450,7 +526,7 @@ public final class SampleData {
 ```
 - Link to the [SampleApp](https://github.com/aws-samples/amazon-qldb-dmv-sample-java/blob/master/src/main/java/software/amazon/qldb/tutorial/model/SampleData.java) class of the DMV Sample App.
 
-* Also create the auxiliar class DmlResultDocument that is used to get the documentId from an IonValue:
+Also create the auxiliary class DmlResultDocument that is used to get the documentId from an IonValue:
 ```java
 package software.amazon.qldb.tutorial.qldb;
 
