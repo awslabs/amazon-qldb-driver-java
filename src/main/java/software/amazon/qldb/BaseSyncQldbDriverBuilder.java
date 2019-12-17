@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,9 +12,9 @@
  */
 package software.amazon.qldb;
 
-import java.util.concurrent.ExecutorService;
-
 import com.amazonaws.util.ValidationUtils;
+
+import java.util.concurrent.ExecutorService;
 
 /**
  * Base builder object for creating synchronous drivers, allowing for configuration of the parameters
@@ -34,7 +34,8 @@ abstract class BaseSyncQldbDriverBuilder<B extends BaseSyncQldbDriverBuilder, T 
 
     /**
      * Specify the number of read-ahead buffers, determining the amount of sets of results buffered in memory,
-     * for each open result set, created within the driver. If read-ahead is desired to be enabled, this must be set to at least 2.
+     * for each open result set, created within the driver. If read-ahead is desired to be enabled, this must be set to
+     * at least 2.
      *
      * The higher the read-ahead buffer count, the more memory will be consumed by the driver when retrieving results.
      *

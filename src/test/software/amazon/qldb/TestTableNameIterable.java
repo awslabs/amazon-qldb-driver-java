@@ -1,16 +1,26 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
 package software.amazon.qldb;
+
+import com.amazon.ion.IonStruct;
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
+import com.amazon.ion.system.IonSystemBuilder;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,16 +29,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.amazon.ion.IonStruct;
-import com.amazon.ion.IonSystem;
-import com.amazon.ion.IonValue;
-import com.amazon.ion.system.IonSystemBuilder;
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 public class TestTableNameIterable {
     private static final IonSystem system = IonSystemBuilder.standard().build();
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Test
     public void testEmptyResult() {
@@ -45,12 +50,14 @@ public class TestTableNameIterable {
         testRowResult(Arrays.asList("table1", "table2"));
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testIncorrectStructureNoStringResult() {
         final List<IonValue> ionTables = new ArrayList<>();
         final IonStruct struct = system.newEmptyStruct();
         struct.add("name", system.singleValue("table"));
         ionTables.add(struct);
+
+        thrown.expect(IllegalStateException.class);
 
         iterateTables(ionTables);
     }

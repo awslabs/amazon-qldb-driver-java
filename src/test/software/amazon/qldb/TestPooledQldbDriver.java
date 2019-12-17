@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,27 +12,42 @@
  */
 package software.amazon.qldb;
 
-import java.util.concurrent.CompletableFuture;
-
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
+import com.amazon.ion.system.IonSystemBuilder;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.ClientConfigurationFactory;
 import com.amazonaws.services.qldbsession.AmazonQLDBSessionClientBuilder;
+import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.qldb.exceptions.QldbClientException;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 public class TestPooledQldbDriver {
     private static final String LEDGER = "ledger";
     private static final int POOL_LIMIT = 2;
+    private static final int TIMEOUT = 30000;
+    private IonSystem system;
+    private List<IonValue> ionList;
 
     private final MockQldbSessionClient mockClient = new MockQldbSessionClient();
 
     @Mock
     private AmazonQLDBSessionClientBuilder mockBuilder;
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Before
     public void init() {
@@ -53,8 +68,10 @@ public class TestPooledQldbDriver {
     }
 
     // This is a test for PooledQldbDriverBuilder
-    @Test (expected = QldbClientException.class)
+    @Test
     public void testBuildWithDefaultPoolLimit() {
+        thrown.expect(QldbClientException.class);
+
         final PooledQldbDriver driver = PooledQldbDriver.builder()
                 .withSessionClientBuilder(mockBuilder)
                 .withLedger(LEDGER)
@@ -70,8 +87,10 @@ public class TestPooledQldbDriver {
     }
 
     // This is a test for PooledQldbDriverBuilder
-    @Test (expected = IllegalArgumentException.class)
+    @Test
     public void testBuildWithPoolLimitNegative() {
+        thrown.expect(IllegalArgumentException.class);
+
         PooledQldbDriver.builder()
                 .withSessionClientBuilder(mockBuilder)
                 .withLedger(LEDGER)
@@ -80,9 +99,11 @@ public class TestPooledQldbDriver {
     }
 
     // This is a test for PooledQldbDriverBuilder
-    @Test (expected = IllegalArgumentException.class)
+    @Test
     public void testBuildWithPoolLimitGreaterThanConfigLimit() {
         // Default for the builder is 50.
+        thrown.expect(IllegalArgumentException.class);
+
         PooledQldbDriver.builder()
                 .withSessionClientBuilder(mockBuilder)
                 .withLedger(LEDGER)
@@ -90,10 +111,35 @@ public class TestPooledQldbDriver {
                 .build();
     }
 
-    @Test (expected = IllegalStateException.class)
+    // This is a test for PooledQldbDriverBuilder
+    @Test
+    public void testBuildWithTimeout() {
+        PooledQldbDriver.builder()
+                .withSessionClientBuilder(mockBuilder)
+                .withLedger(LEDGER)
+                .withPoolTimeout(TIMEOUT)
+                .build();
+    }
+
+    // This is a test for PooledQldbDriverBuilder
+    @Test
+    public void testBuildWithTimeoutNegative() {
+        thrown.expect(IllegalArgumentException.class);
+
+        PooledQldbDriver.builder()
+                .withSessionClientBuilder(mockBuilder)
+                .withLedger(LEDGER)
+                .withPoolTimeout(-1)
+                .build();
+    }
+
+    @Test
     public void testClose() {
         mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
         mockClient.queueResponse(MockResponses.endSessionResponse());
+
+        thrown.expect(IllegalStateException.class);
+
         final PooledQldbDriver driver = PooledQldbDriver.builder()
                 .withSessionClientBuilder(mockBuilder)
                 .withLedger(LEDGER)
@@ -109,6 +155,26 @@ public class TestPooledQldbDriver {
     }
 
     @Test
+    public void testAutoClosableWithInvalidSessionException() {
+        final InvalidSessionException exception = new InvalidSessionException("msg");
+        mockClient.queueResponse(exception);
+
+        thrown.expect(InvalidSessionException.class);
+
+        try (PooledQldbDriver driver = PooledQldbDriver.builder()
+                .withSessionClientBuilder(mockBuilder)
+                .withLedger(LEDGER)
+                .withPoolLimit(POOL_LIMIT)
+                .build()) {
+
+            driver.getSession();
+        }
+        finally {
+            Assert.assertTrue(mockClient.isQueueEmpty());
+        }
+    }
+
+    @Test
     public void testGetSession() {
         mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
         final PooledQldbDriver driver = PooledQldbDriver.builder()
@@ -119,7 +185,7 @@ public class TestPooledQldbDriver {
         Assert.assertEquals(driver.getSession().getLedgerName(), LEDGER);
     }
 
-    @Test (expected = AmazonClientException.class)
+    @Test
     public void testGetSessionException() {
         final String msg = "msg";
         mockClient.queueResponse(new AmazonClientException(msg));
@@ -128,6 +194,9 @@ public class TestPooledQldbDriver {
                 .withLedger(LEDGER)
                 .withPoolLimit(POOL_LIMIT)
                 .build();
+
+        thrown.expect(AmazonClientException.class);
+
         try {
             QldbSession session = driver.getSession();
         } catch (AmazonClientException ace) {
@@ -150,9 +219,12 @@ public class TestPooledQldbDriver {
         Assert.assertEquals(driver.getSession().getLedgerName(), LEDGER);
     }
 
-    @Test (expected = QldbClientException.class)
+    @Test
     public void testGetSessionReachedTimeout() {
         mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+
+        thrown.expect(QldbClientException.class);
+
         PooledQldbDriver driver = PooledQldbDriver.builder()
                 .withSessionClientBuilder(mockBuilder)
                 .withLedger(LEDGER)
@@ -206,7 +278,7 @@ public class TestPooledQldbDriver {
         Assert.assertEquals(driver.getSession().getLedgerName(), LEDGER);
     }
 
-    @Test (expected = AmazonClientException.class)
+    @Test
     public void testGetSessionWaitingAbortThrowsStartThrows() {
         mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
         mockClient.queueResponse(new AmazonClientException("msg1"));
@@ -225,6 +297,9 @@ public class TestPooledQldbDriver {
             }
             blockingSession.close();
         });
+
+        thrown.expect(AmazonClientException.class);
+
         try {
             driver.getSession();
         } catch (AmazonClientException ace) {
@@ -234,18 +309,30 @@ public class TestPooledQldbDriver {
     }
 
     @Test
-    public void testReleaseSession() {
+    public void testReleaseSession() throws IOException {
+        system = IonSystemBuilder.standard().build();
+        ionList  = new ArrayList<>(2);
+        ionList.add(system.newString("a"));
+        ionList.add(system.newString("b"));
+
         mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.startTxnResponse("id"));
         mockClient.queueResponse(MockResponses.ABORT_RESPONSE);
+        mockClient.queueResponse(MockResponses.executeResponse(ionList));
+
         PooledQldbDriver driver = PooledQldbDriver.builder()
                 .withSessionClientBuilder(mockBuilder)
                 .withLedger(LEDGER)
                 .withPoolLimit(POOL_LIMIT)
                 .build();
         final QldbSession session = driver.getSession();
+        final Transaction txnFromPooledSession = session.startTransaction();
         session.close();
 
         // This will throw an exception if it doesn't reuse the old session since only one start session response is queued.
         driver.getSession();
+
+        // This should not throw an exception since the transaction is still alive when the session is returned.
+        txnFromPooledSession.execute("foo");
     }
 }

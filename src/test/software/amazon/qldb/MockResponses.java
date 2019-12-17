@@ -1,24 +1,16 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
 package software.amazon.qldb;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
@@ -32,8 +24,17 @@ import com.amazonaws.services.qldbsession.model.StartSessionResult;
 import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class MockResponses {
     public static final String SESSION_TOKEN = "sessionToken";
+    public static final String REQUEST_ID = "requestId";
     public static final SendCommandResult ABORT_RESPONSE = addRequestId(new SendCommandResult());
     public static final StartSessionResult startSessionResult = new StartSessionResult().withSessionToken(SESSION_TOKEN);
     public static final SendCommandResult START_SESSION_RESPONSE =
@@ -85,7 +86,7 @@ public class MockResponses {
 
     private static SendCommandResult addRequestId(SendCommandResult result) {
         final Map<String, String> responseMap = new HashMap<>();
-        responseMap.put(ResponseMetadata.AWS_REQUEST_ID, "requestId");
+        responseMap.put(ResponseMetadata.AWS_REQUEST_ID, REQUEST_ID);
         responseMap.put(ResponseMetadata.AWS_EXTENDED_REQUEST_ID, "extRequestId");
         result.setSdkResponseMetadata(new ResponseMetadata(responseMap));
         return result;

@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,20 +12,19 @@
  */
 package software.amazon.qldb;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Comparator;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.amazon.ion.IonReader;
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ionhash.IonHashReader;
 import com.amazon.ionhash.IonHashReaderBuilder;
 import com.amazon.ionhash.MessageDigestIonHasherProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * A QLDB hash is either a 256 bit number or a special empty hash.
@@ -61,14 +60,38 @@ public class QldbHash {
 
     public QldbHash(byte[] qldbHash, IonSystem ionSystem) {
         if (qldbHash == null || !(qldbHash.length == HASH_SIZE || qldbHash.length == 0)) {
-            throw new IllegalArgumentException( String.format("Hashes must either be empty or %d bytes long", HASH_SIZE));
+            throw new IllegalArgumentException(String.format("Hashes must either be empty or %d bytes long",
+                    HASH_SIZE));
         }
         this.ionSystem = ionSystem;
         this.qldbHash = qldbHash;
     }
 
+    public QldbHash dot(QldbHash that) {
+        byte[] concatenated = joinHashesPairwise(this.getQldbHash(), that.getQldbHash());
+        MessageDigest messageDigest = newMessageDigest();
+        messageDigest.update(concatenated);
+        return new QldbHash(messageDigest.digest(), ionSystem);
+    }
+
+    public boolean equals(Object other) {
+        if (null == other || !(other instanceof QldbHash)) {
+            return false;
+        }
+        return hashComparator.compare(this.getQldbHash(), ((QldbHash)other).getQldbHash() ) == 0;
+
+    }
+
     public int getHashSize() {
         return qldbHash.length;
+    }
+
+    public byte[] getQldbHash(){
+        return this.qldbHash;
+    }
+
+    public int hashCode() {
+        return Arrays.hashCode(getQldbHash());
     }
 
     public boolean isEmpty() {
@@ -83,34 +106,10 @@ public class QldbHash {
         return stringBuffer.toString();
     }
 
-    public byte[] getQldbHash(){
-        return this.qldbHash;
-    }
-
-    public boolean equals(Object other) {
-        if (null == other || !(other instanceof QldbHash)) {
-            return false;
-        }
-        return hashComparator.compare(this.getQldbHash(), ((QldbHash)other).getQldbHash() ) == 0;
-
-    }
-
-    public int hashCode() {
-        return Arrays.hashCode(getQldbHash());
-    }
-
-    public QldbHash dot(QldbHash that) {
-        byte[] concatenated = joinHashesPairwise(this.getQldbHash(), that.getQldbHash());
-        MessageDigest messageDigest = newMessageDigest();
-        messageDigest.update(concatenated);
-        return new QldbHash(messageDigest.digest(), ionSystem);
-    }
-
     /**
-     * Takes two hashes, sorts them, concatenates them, and then returns the
-     * hash of the concatenated array.
+     * Takes two hashes, sorts them, and concatenates them.
      */
-    private byte[] joinHashesPairwise(byte[] h1, byte[] h2) {
+    private static byte[] joinHashesPairwise(byte[] h1, byte[] h2) {
         if (h1.length == 0)
             return h2;
         if (h2.length == 0)
@@ -127,6 +126,19 @@ public class QldbHash {
     }
 
     /**
+     * Get a new instance of {@link MessageDigest} using the SHA-256 algorithm. If this algorithm is
+     * not available on the current JVM then throws {@link IllegalStateException}
+     */
+    private static MessageDigest newMessageDigest() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Failed to create SHA-256 MessageDigest", e);
+            throw new IllegalStateException("SHA-256 message digest is unavailable", e);
+        }
+    }
+
+    /**
      * Compares two hashes by their <em>signed</em> byte values in little-endian order.
      */
     private static Comparator<byte[]> hashComparator = (h1, h2) -> {
@@ -140,17 +152,4 @@ public class QldbHash {
 
         return 0;
     };
-
-    /**
-     * Get a new instance of {@link MessageDigest} using the SHA-256 algorithm. If this algorithm is
-     * not available on the current JVM then throws {@link IllegalStateException}
-     */
-    private static MessageDigest newMessageDigest() {
-        try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("Failed to create SHA-256 MessageDigest", e);
-            throw new IllegalStateException("SHA-256 message digest is unavailable", e);
-        }
-    }
 }

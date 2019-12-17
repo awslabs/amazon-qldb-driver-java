@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,24 +12,23 @@
  */
 package software.amazon.qldb;
 
-import java.util.concurrent.ExecutorService;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.amazon.ion.IonSystem;
 import com.amazonaws.annotation.ThreadSafe;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.Errors;
 
+import java.util.concurrent.ExecutorService;
+
 /**
- * <p>Represents a factory for accessing sessions to a specific ledger within QLDB. This class or {@link PooledQldbDriver} should be
- * the main entry points to any interaction with QLDB. {@link #getSession()} will create a {@link QldbSession} to the specified
- * ledger within QLDB as a communication channel. Any sessions acquired should be cleaned up with {@link QldbSession#close()} to
- * free up resources.</p>
+ * <p>Represents a factory for accessing sessions to a specific ledger within QLDB. This class or
+ * {@link PooledQldbDriver} should be the main entry points to any interaction with QLDB. {@link #getSession()} will
+ * create a {@link QldbSession} to the specified ledger within QLDB as a communication channel. Any sessions acquired
+ * should be cleaned up with {@link QldbSession#close()} to free up resources.</p>
  *
- * <p>This factory does not attempt to re-use or manage sessions in any way. It is recommended to use {@link PooledQldbDriver} for
- * both less resource usage and lower latency.</p>
+ * <p>This factory does not attempt to re-use or manage sessions in any way. It is recommended to use
+ * {@link PooledQldbDriver} for both less resource usage and lower latency.</p>
  */
 @ThreadSafe
 public class QldbDriver extends BaseSyncQldbDriver {
@@ -76,7 +75,7 @@ public class QldbDriver extends BaseSyncQldbDriver {
         /**
          * Restricted constructor. Use {@link #builder()} to retrieve an instance of this class.
          */
-        QldbDriverBuilder() {}
+        protected QldbDriverBuilder() {}
 
         @Override
         protected QldbDriver createDriver() {
