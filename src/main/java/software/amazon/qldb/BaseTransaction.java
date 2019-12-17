@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,31 +12,34 @@
  */
 package software.amazon.qldb;
 
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazonaws.util.ValidationUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The abstract base transaction, containing the properties and methods shared by the asynchronous and synchronous implementations
- * of a QLDB transaction.
+ * The abstract base transaction, containing the properties and methods shared by the asynchronous and synchronous
+ * implementations of a QLDB transaction.
  */
-abstract class BaseTransaction implements AutoCloseable {
-    final BaseQldbSession qldbSession;
+abstract class BaseTransaction {
+    private static final Logger logger = LoggerFactory.getLogger(BaseTransaction.class);
+
     final Session session;
     final String txnId;
     final AtomicBoolean isClosed = new AtomicBoolean(true);
-    private QldbHash txnHash;
     final IonSystem ionSystem;
+    private QldbHash txnHash;
 
-    BaseTransaction(BaseQldbSession qldbSession, String txnId, IonSystem ionSystem) {
-        ValidationUtils.assertNotNull(qldbSession, "qldbSession");
+    BaseTransaction(Session session, String txnId, IonSystem ionSystem) {
+        ValidationUtils.assertNotNull(session, "session");
         ValidationUtils.assertNotNull(txnId, "txnId");
 
-        this.qldbSession = qldbSession;
-        this.session = qldbSession.session;
+        this.session = session;
         this.txnId = txnId;
         this.txnHash = QldbHash.toQldbHash(this.txnId, ionSystem);
         this.ionSystem = ionSystem;
@@ -45,6 +48,26 @@ abstract class BaseTransaction implements AutoCloseable {
 
     public String getTransactionId() {
         return txnId;
+    }
+
+    /**
+     * Apply the dot function on a seed {@link QldbHash} given a statement and parameters.
+     *
+     * @param seed
+     *              The current QldbHash representing the transaction's current commit digest.
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The new QldbHash for the transaction.
+     */
+    static QldbHash dot(QldbHash seed, String statement, List<IonValue> parameters, IonSystem ionSystem) {
+        QldbHash statementHash = QldbHash.toQldbHash(statement, ionSystem);
+        for (IonValue param : parameters) {
+            statementHash = statementHash.dot(QldbHash.toQldbHash(param, ionSystem));
+        }
+        return seed.dot(statementHash);
     }
 
     /**
@@ -67,22 +90,14 @@ abstract class BaseTransaction implements AutoCloseable {
     }
 
     /**
-     * Apply the dot function on a seed {@link QldbHash} given a statement and parameters.
+     * Check and throw if this transaction is closed.
      *
-     * @param seed
-     *              The current QldbHash representing the transaction's current commit digest.
-     * @param statement
-     *              The PartiQL statement to be executed against QLDB.
-     * @param parameters
-     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
-     *
-     * @return The new QldbHash for the transaction.
+     * @throws IllegalStateException if this transaction is closed.
      */
-    static QldbHash dot(QldbHash seed, String statement, List<IonValue> parameters, IonSystem ionSystem) {
-        QldbHash statementHash = QldbHash.toQldbHash(statement, ionSystem);
-        for (IonValue param : parameters) {
-            statementHash = statementHash.dot(QldbHash.toQldbHash(param, ionSystem));
+    void throwIfClosed() {
+        if (isClosed.get()) {
+            logger.error(Errors.TXN_CLOSED.get());
+            throw new IllegalStateException(Errors.TXN_CLOSED.get());
         }
-        return seed.dot(statementHash);
     }
 }

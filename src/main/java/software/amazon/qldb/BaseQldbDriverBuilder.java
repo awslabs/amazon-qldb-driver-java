@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,15 +12,15 @@
  */
 package software.amazon.qldb;
 
-import java.util.MissingResourceException;
-import java.util.ResourceBundle;
-
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.system.IonSystemBuilder;
 import com.amazonaws.ClientConfigurationFactory;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
 import com.amazonaws.services.qldbsession.AmazonQLDBSessionClientBuilder;
 import com.amazonaws.util.ValidationUtils;
+
+import java.util.MissingResourceException;
+import java.util.ResourceBundle;
 
 abstract class BaseQldbDriverBuilder<Subclass extends BaseQldbDriverBuilder, TypeToBuild> {
     private static final String VERSION_KEY = "project.version";
@@ -73,7 +73,8 @@ abstract class BaseQldbDriverBuilder<Subclass extends BaseQldbDriverBuilder, Typ
     }
 
     /**
-     * Specify the retry limit that any convenience execute methods provided by sessions created from the driver will attempt.
+     * Specify the retry limit that any convenience execute methods provided by sessions created from the driver will
+     * attempt.
      *
      * @param retryLimit
      *              The number of retry attempts to be made by the session.
@@ -119,13 +120,6 @@ abstract class BaseQldbDriverBuilder<Subclass extends BaseQldbDriverBuilder, Typ
     }
 
     /**
-     * Retrieve the version string for the driver.
-     *
-     * @return The version string for the driver.
-     */
-    protected abstract String getVersion();
-
-    /**
      * Create a new driver instance using the current configuration.
      *
      * @return The newly created driver instance.
@@ -140,4 +134,11 @@ abstract class BaseQldbDriverBuilder<Subclass extends BaseQldbDriverBuilder, Typ
     protected Subclass getSubclass() {
         return (Subclass) this;
     }
+
+    /**
+     * Retrieve the version string for the driver.
+     *
+     * @return The version string for the driver.
+     */
+    protected abstract String getVersion();
 }

@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,19 +12,25 @@
  */
 package software.amazon.qldb;
 
-import java.util.Collections;
-
+import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import java.util.Collections;
+
 public class TestPooledQldbSession {
     @Mock
     QldbSessionImpl mockSession;
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     PooledQldbSession session;
 
@@ -52,6 +58,19 @@ public class TestPooledQldbSession {
     }
 
     @Test
+    public void testAutoCloseableWithInvalidSessionException() {
+        Mockito.when(mockSession.startTransaction()).thenThrow(new InvalidSessionException(""));
+
+        thrown.expect(InvalidSessionException.class);
+
+        try (PooledQldbSession session = new PooledQldbSession(mockSession, this::verifyCloseSession)) {
+            session.startTransaction();
+        } finally {
+            Assert.assertTrue(wasCloseCalled);
+        }
+    }
+
+    @Test
     public void testExecute() {
         session.execute("query");
         Mockito.verify(mockSession).execute("query");
@@ -64,9 +83,21 @@ public class TestPooledQldbSession {
     }
 
     @Test
+    public void testExecuteLambdaNoRetry() {
+        session.execute(txn -> {});
+        Mockito.verify(mockSession).execute(ArgumentMatchers.any(ExecutorNoReturn.class));
+    }
+
+    @Test
     public void testExecuteLambdaNoReturn() {
         session.execute(txn -> {}, null);
         Mockito.verify(mockSession).execute(ArgumentMatchers.any(ExecutorNoReturn.class), ArgumentMatchers.isNull());
+    }
+
+    @Test
+    public void testExecuteLambdaReturnNoRetry() {
+        session.execute(txn -> 5);
+        Mockito.verify(mockSession).execute(ArgumentMatchers.any(Executor.class));
     }
 
     @Test
@@ -105,8 +136,10 @@ public class TestPooledQldbSession {
         Mockito.verify(mockSession).startTransaction();
     }
 
-    @Test (expected = IllegalStateException.class)
+    @Test
     public void testThrowIfClosed() {
+        thrown.expect(IllegalStateException.class);
+
         session.close();
         session.startTransaction();
     }

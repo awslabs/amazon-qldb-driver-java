@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -18,9 +18,6 @@ import java.util.ResourceBundle;
  * Enum identifying the possible errors within the QLDB session, allowing for retrieval of a localized error message.
  */
 public enum Errors {
-    ASNYC_BUFFERING_FAILED,
-    ASYNC_EXECUTE_INTERRUPTED,
-    ASYNC_EXECUTE_FAILED,
     DRIVER_CLOSED,
     GET_SESSION_INTERRUPTED,
     INCORRECT_TYPE,

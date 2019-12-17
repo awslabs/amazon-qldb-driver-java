@@ -1,25 +1,16 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
 package software.amazon.qldb;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
@@ -30,21 +21,32 @@ import com.amazonaws.services.qldbsession.AmazonQLDBSession;
 import com.amazonaws.services.qldbsession.model.AbortTransactionRequest;
 import com.amazonaws.services.qldbsession.model.AbortTransactionResult;
 import com.amazonaws.services.qldbsession.model.CommitTransactionRequest;
+import com.amazonaws.services.qldbsession.model.CommitTransactionResult;
 import com.amazonaws.services.qldbsession.model.EndSessionRequest;
 import com.amazonaws.services.qldbsession.model.EndSessionResult;
 import com.amazonaws.services.qldbsession.model.ExecuteStatementRequest;
 import com.amazonaws.services.qldbsession.model.ExecuteStatementResult;
 import com.amazonaws.services.qldbsession.model.FetchPageRequest;
+import com.amazonaws.services.qldbsession.model.FetchPageResult;
+import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
 import com.amazonaws.services.qldbsession.model.Page;
 import com.amazonaws.services.qldbsession.model.SendCommandRequest;
 import com.amazonaws.services.qldbsession.model.SendCommandResult;
 import com.amazonaws.services.qldbsession.model.StartSessionRequest;
 import com.amazonaws.services.qldbsession.model.StartTransactionRequest;
+import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbClientException;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Session object representing a communication channel with QLDB.
@@ -57,20 +59,26 @@ class Session implements AutoCloseable {
 
     private final String ledgerName;
     private final String sessionToken;
+    private final String sessionId;
     private final AmazonQLDBSession client;
 
     /**
      * Constructor for a session to a specific ledger.
-     *
+     #
+     * @param ledgerName
+     *              The name of the ledger to create a session to.
      * @param sessionToken
      *              The unique identifying token for this session to the QLDB.
+     * @param sessionId
+     *              The initial request ID for this session to QLDB.
      * @param client
      *              The low-level session used for communication with QLDB.
      */
-    private Session(String ledgerName, String sessionToken, AmazonQLDBSession client) {
+    private Session(String ledgerName, String sessionToken, String sessionId, AmazonQLDBSession client) {
         this.ledgerName = ledgerName;
         this.client = client;
         this.sessionToken = sessionToken;
+        this.sessionId = sessionId;
     }
 
     /**
@@ -90,8 +98,37 @@ class Session implements AutoCloseable {
         logger.debug("Sending start session request: {}", command);
         final SendCommandResult result = client.sendCommand(command);
         final String sessionToken = result.getStartSession().getSessionToken();
+        final String sessionId = result.getSdkResponseMetadata().getRequestId();
 
-        return new Session(ledgerName, sessionToken, client);
+        return new Session(ledgerName, sessionToken, sessionId, client);
+    }
+
+    @Override
+    public void close() {
+        try {
+            sendEndSession();
+        } catch (AmazonClientException e) {
+            // We will only log issues closing the session, as QLDB will clean them up after a timeout.
+            logger.warn("Errors closing session: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get the low-level session client used for communication with QLDB.
+     *
+     * @return The low-level session.
+     */
+    AmazonQLDBSession getClient() {
+        return client;
+    }
+
+    /**
+     * Get the session ID.
+     *
+     * @return This session's ID.
+     */
+    String getId() {
+        return sessionId;
     }
 
     /**
@@ -112,16 +149,6 @@ class Session implements AutoCloseable {
         return sessionToken;
     }
 
-    @Override
-    public void close() {
-        try {
-            sendEndSession();
-        } catch (AmazonClientException e) {
-            // We will only log issues closing the session, as QLDB will clean them up after a timeout.
-            logger.warn("Errors closing session: " + e.getMessage(), e);
-        }
-    }
-
     /**
      * Send an abort request to QLDB, rolling back any active changes and closing any open results.
      *
@@ -131,7 +158,6 @@ class Session implements AutoCloseable {
         final AbortTransactionRequest request = new AbortTransactionRequest();
 
         SendCommandResult result = send(new SendCommandRequest().withAbortTransaction(request));
-        // Currently unused.
         return result.getAbortTransaction();
     }
 
@@ -143,16 +169,16 @@ class Session implements AutoCloseable {
      * @param transactionDigest
      *              The digest hash of the transaction to commit.
      *
-     * @return The commit digest returned from QLDB.
+     * @return The result of the commit transaction request.
      * @throws OccConflictException if an OCC conflict has been detected within the transaction.
      */
-    ByteBuffer sendCommit(String txnId, ByteBuffer transactionDigest) {
+    CommitTransactionResult sendCommit(String txnId, ByteBuffer transactionDigest) {
         final CommitTransactionRequest request = new CommitTransactionRequest()
                 .withTransactionId(txnId)
                 .withCommitDigest(transactionDigest);
 
         SendCommandResult result = send(new SendCommandRequest().withCommitTransaction(request));
-        return result.getCommitTransaction().getCommitDigest();
+        return result.getCommitTransaction();
     }
 
     /**
@@ -164,7 +190,6 @@ class Session implements AutoCloseable {
         final EndSessionRequest request = new EndSessionRequest();
 
         SendCommandResult result = send(new SendCommandRequest().withEndSession(request));
-        // Currently unused.
         return result.getEndSession();
     }
 
@@ -197,7 +222,8 @@ class Session implements AutoCloseable {
                     stream.reset();
                 }
             } catch (IOException e) {
-                throw QldbClientException.create(String.format(Errors.SERIALIZING_PARAMS.get(), e.getMessage()), e, logger);
+                throw QldbClientException.create(String.format(Errors.SERIALIZING_PARAMS.get(), e.getMessage()),
+                        e, logger);
             }
         }
 
@@ -217,28 +243,28 @@ class Session implements AutoCloseable {
      * @param nextPageToken
      *              The token that indicates what the next expected page is.
      *
-     * @return The next data chunk of the specified result.
+     * @return The result of the fetch page request.
      */
-    Page sendFetchPage(String txnId, String nextPageToken) {
+    FetchPageResult sendFetchPage(String txnId, String nextPageToken) {
         final FetchPageRequest request = new FetchPageRequest()
                 .withTransactionId(txnId)
                 .withNextPageToken(nextPageToken);
 
         SendCommandResult result = send(new SendCommandRequest().withFetchPage(request));
-        return result.getFetchPage().getPage();
+        return result.getFetchPage();
     }
 
     /**
      * Send a start transaction request to QLDB.
      *
-     * @return The transaction ID for the new transaction.
+     * @return The result of the start transaction request.
      */
-    String sendStartTransaction() {
+    StartTransactionResult sendStartTransaction() {
         final StartTransactionRequest request = new StartTransactionRequest();
         final SendCommandRequest command = new SendCommandRequest().withStartTransaction(request);
 
         final SendCommandResult result = send(command);
-        return result.getStartTransaction().getTransactionId();
+        return result.getStartTransaction();
     }
 
     /**
@@ -249,6 +275,7 @@ class Session implements AutoCloseable {
      *
      * @return The result returned by QLDB for the request.
      * @throws OccConflictException if an OCC conflict was detected when committing a transaction.
+     * @throws InvalidSessionException when this session is invalid.
      */
     private SendCommandResult send(SendCommandRequest request) {
         final SendCommandRequest command = request.withSessionToken(sessionToken);

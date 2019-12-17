@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,19 +12,17 @@
  */
 package software.amazon.qldb;
 
-import java.util.Iterator;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.NotThreadSafe;
 import com.amazonaws.services.qldbsession.model.Page;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.Errors;
+
+import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Result implementation which streams data from QLDB, discarding chunks as they are read.
@@ -123,8 +121,8 @@ class StreamResult extends BaseResult implements Result {
          * Get boolean indicating if there is a next value in the iterator.
          *
          * @return Boolean indicating whether or not there is a next value.
-         * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB, when trying to get the next
-         *                                             page of results.
+         * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB, when trying to get
+         *                                             the next page of results.
          */
         @Override
         public boolean hasNext() {
@@ -134,9 +132,9 @@ class StreamResult extends BaseResult implements Result {
         /**
          * Get the next value in the iterator.
          *
-         * @return The next IonValue resulting from the execution query.
-         * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB, when trying to get the next
-         *                                             page of results.
+         * @return The next IonValue resulting from the execution statement.
+         * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB, when trying to get
+         *                                             the next page of results.
          */
         @Override
         public IonValue next() {

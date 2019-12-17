@@ -1,16 +1,24 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
 package software.amazon.qldb;
+
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
+import com.amazonaws.services.qldbsession.model.Page;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.QldbClientException;
 
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
@@ -19,16 +27,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.amazon.ion.IonSystem;
-import com.amazon.ion.IonValue;
-import com.amazonaws.services.qldbsession.model.Page;
-
-import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbClientException;
 
 /**
  * Used to retrieve the results from QLDB, either asynchronously or synchronously.
@@ -43,12 +41,14 @@ import software.amazon.qldb.exceptions.QldbClientException;
 class ResultRetriever {
     private static final Logger logger = LoggerFactory.getLogger(ResultRetriever.class);
 
+    private final Session session;
     private Page currentPage;
     private int currentResultValueIndex;
 
     private final Retriever retriever;
     private final IonSystem ionSystem;
     private final ExecutorService executorService;
+    private final AtomicBoolean isClosed;
 
     /**
      * Constructor.
@@ -68,10 +68,12 @@ class ResultRetriever {
                            ExecutorService executorService) {
         Validate.assertIsNotNegative(readAhead, "readAhead");
 
+        this.session = session;
         this.currentPage = firstPage;
         this.currentResultValueIndex = 0;
         this.ionSystem = ionSystem;
         this.executorService = executorService;
+        this.isClosed = new AtomicBoolean(false);
 
         // Start the retriever thread if there are more chunks to retrieve.
         if (currentPage.getNextPageToken() == null) {
@@ -79,8 +81,8 @@ class ResultRetriever {
         } else if (0 == readAhead) {
             this.retriever = new Retriever(session, txnId, currentPage.getNextPageToken());
         } else {
-            final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId, currentPage.getNextPageToken(),
-                    readAhead);
+            final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId,
+                    currentPage.getNextPageToken(), readAhead, isClosed);
             this.retriever = runner;
 
             if (null == executorService) {
@@ -99,6 +101,9 @@ class ResultRetriever {
      * @return {@code true} if there is more data and {@link #next()} will return an IonValue; {@code false} otherwise.
      */
     public synchronized boolean hasNext() {
+        if (isClosed.get()) {
+            throw QldbClientException.create(Errors.RESULT_PARENT_INACTIVE.get(), session.getToken(), logger);
+        }
         while (currentResultValueIndex >= currentPage.getValues().size()) {
             if (null == currentPage.getNextPageToken()) {
                 return false;
@@ -110,7 +115,8 @@ class ResultRetriever {
     }
 
     /**
-     * Retrieve the next IonValue in the result. Note that this should only be called if {@link #hasNext()} returns true.
+     * Retrieve the next IonValue in the result. Note that this should only be called if {@link #hasNext()} returns
+     * true.
      *
      * @return The next IonValue in the result.
      * @throws NoSuchElementException if the iteration has no more elements.
@@ -125,12 +131,10 @@ class ResultRetriever {
     }
 
     /**
-     * Explicitly release and resources held by the result.
+     * Set this retriever to closed, indicating the parent transaction is closed.
      */
     void close() {
-        if (null != this.retriever) {
-            this.retriever.close();
-        }
+        isClosed.set(true);
     }
 
     /**
@@ -164,23 +168,16 @@ class ResultRetriever {
          * @throws QldbClientException if an unexpected error occurs during result retrieval.
          */
          Page getNextPage() {
-            final Page result = session.sendFetchPage(txnId, nextPageToken);
+            final Page result = session.sendFetchPage(txnId, nextPageToken).getPage();
             nextPageToken = result.getNextPageToken();
             return result;
-        }
-
-        /**
-         * Explicitly release and resources held by the result.
-         */
-        void close() {
-            // No-op for the base class.
         }
     }
 
     private static class ResultRetrieverRunnable extends Retriever implements Runnable {
         private final BlockingDeque<ResultHolder<Exception>> results;
         private final int readAhead;
-        private final AtomicBoolean isRunning;
+        private final AtomicBoolean isClosed;
 
         /**
          * Constructor for the Runnable responsible for asynchronous retrieval of results from QLDB.
@@ -193,12 +190,15 @@ class ResultRetriever {
          *              The unique token identifying the next chunk of data to fetch for this result set.
          * @param readAhead
          *              The maximum number of chunks of data to buffer at any one time.
+         * @param isClosed
+         *              {@link AtomicBoolean} tracking the state of the parent {@link ResultRetriever}.
          */
-        ResultRetrieverRunnable(Session session, String txnId, String nextPageToken, int readAhead) {
+        ResultRetrieverRunnable(Session session, String txnId, String nextPageToken, int readAhead,
+                                AtomicBoolean isClosed) {
             super(session, txnId, nextPageToken);
             this.readAhead = Math.min(1, readAhead - 1);
             this.results = new LinkedBlockingDeque<>(readAhead);
-            this.isRunning = new AtomicBoolean(true);
+            this.isClosed = isClosed;
         }
 
         @Override
@@ -208,14 +208,16 @@ class ResultRetriever {
                     final Page page = super.getNextPage();
                     try {
                         while (!results.offer(new ResultHolder(page), 50, TimeUnit.MILLISECONDS)) {
-                            if (!this.isRunning.get()) {
-                                throw QldbClientException.create(Errors.RESULT_PARENT_INACTIVE.get(), session.getToken(), logger);
+                            if (isClosed.get()) {
+                                throw QldbClientException.create(Errors.RESULT_PARENT_INACTIVE.get(),
+                                        session.getToken(), logger);
                             }
                             Thread.yield();
                         }
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie, logger);
+                        throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie,
+                                logger);
                     }
                 }
             } catch (Exception e) {
@@ -243,11 +245,6 @@ class ResultRetriever {
                 Thread.currentThread().interrupt();
                 throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie, logger);
             }
-        }
-
-        @Override
-        void close() {
-            this.isRunning.set(false);
         }
     }
 }

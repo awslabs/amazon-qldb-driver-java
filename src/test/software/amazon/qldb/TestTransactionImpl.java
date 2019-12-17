@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,25 +12,30 @@
  */
 package software.amazon.qldb;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.qldbsession.model.CommitTransactionResult;
 import com.amazonaws.services.qldbsession.model.ExecuteStatementResult;
+import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
 import com.amazonaws.services.qldbsession.model.Page;
+import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
 
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,32 +47,39 @@ public class TestTransactionImpl {
     @Mock
     private Session mockSession;
 
-    private QldbSessionImpl mockQldbSession;
+    @Mock
+    private StartTransactionResult mockStartTransaction;
 
-    private ByteBuffer mockCommitResult;
+    @Mock
+    private CommitTransactionResult mockCommitTransaction;
 
     private TransactionImpl txn;
+
+    private ByteBuffer testCommitDigest;
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Before
     public void init() {
         MockitoAnnotations.initMocks(this);
         Page page = new Page().withNextPageToken(null).withValues(Collections.emptyList());
         ExecuteStatementResult dummyResult = new ExecuteStatementResult().withFirstPage(page);
-        Mockito.when(
-            mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(), ArgumentMatchers.anyString()))
-                .thenReturn(dummyResult);
         Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
                 ArgumentMatchers.anyString())).thenReturn(dummyResult);
-        Mockito.when(mockSession.sendStartTransaction()).thenReturn(txnId);
-        mockQldbSession = new QldbSessionImpl(mockSession, 4, 1, system, null);
+        Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+                ArgumentMatchers.anyString())).thenReturn(dummyResult);
+        Mockito.when(mockStartTransaction.getTransactionId()).thenReturn(txnId);
+        Mockito.when(mockSession.sendStartTransaction()).thenReturn(mockStartTransaction);
 
-        txn = new TransactionImpl(mockQldbSession, txnId, 1, system, null);
+        txn = new TransactionImpl(mockSession, txnId, 1, system, null);
     }
 
     @Test
     public void testConstructor() {
-        Mockito.when(mockSession.sendStartTransaction()).thenThrow(new AmazonClientException("")).thenReturn(txnId);
-        txn = new TransactionImpl(mockQldbSession, txnId, 1, system, null);
+        Mockito.when(mockSession.sendStartTransaction()).thenThrow(new AmazonClientException(""))
+                .thenReturn(mockStartTransaction);
+        txn = new TransactionImpl(mockSession, txnId, 1, system, null);
         final String value = txn.getTransactionId();
         Assert.assertNotNull(value);
         Assert.assertEquals(txnId, value);
@@ -82,29 +94,62 @@ public class TestTransactionImpl {
     }
 
     @Test
+    public void testAbortInvalidSession() {
+        Mockito.when(mockSession.sendAbort()).thenThrow(new InvalidSessionException(""));
+
+        thrown.expect(InvalidSessionException.class);
+
+        try {
+            txn.abort();
+        } finally {
+            Assert.assertTrue(txn.isClosed.get());
+        }
+    }
+
+    @Test
     public void testCommit() {
         testExecute();
-        mockCommitResult = ByteBuffer.wrap(txn.getTransactionHash().getQldbHash());
-        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any())).thenReturn(mockCommitResult);
+        testCommitDigest = ByteBuffer.wrap(txn.getTransactionHash().getQldbHash());
+        Mockito.when(mockCommitTransaction.getCommitDigest()).thenReturn(testCommitDigest);
+        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+                .thenReturn(mockCommitTransaction);
         txn.commit();
         verify(mockSession, times(1)).sendCommit(txnId,
                 ByteBuffer.wrap(txn.getTransactionHash().getQldbHash()));
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testCommitMismatchedDigest(){
         testExecute();
         byte[] mockBytes = new byte[0];
-        mockCommitResult = ByteBuffer.wrap(mockBytes);
-        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any())).thenReturn(mockCommitResult);
+        testCommitDigest = ByteBuffer.wrap(mockBytes);
+        Mockito.when(mockCommitTransaction.getCommitDigest()).thenReturn(testCommitDigest);
+        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+                .thenReturn(mockCommitTransaction);
+
+        thrown.expect(IllegalStateException.class);
+
         txn.commit();
     }
 
     @Test
     public void testClose() {
         txn.close();
-
         Assert.assertTrue(txn.isClosed.get());
+    }
+
+    @Test
+    public void testAutoCloseableWithInvalidSessionException() {
+        Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+                ArgumentMatchers.anyString())).thenThrow(new InvalidSessionException(""));
+
+        thrown.expect(InvalidSessionException.class);
+
+        try (Transaction txn = new TransactionImpl(mockSession, txnId, 1, system, null)) {
+            txn.execute("stmtQuery");
+        } finally {
+            Mockito.verify(mockSession, Mockito.times(1)).sendAbort();
+        }
     }
 
     @Test
@@ -116,21 +161,77 @@ public class TestTransactionImpl {
         verify(mockSession, Mockito.never()).sendAbort();
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testCommitAfterCommit() {
         testCommit();
+
+        thrown.expect(IllegalStateException.class);
+
         txn.commit();
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
+    public void testCommitInvalidSession() {
+        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+                .thenThrow(new InvalidSessionException(""));
+
+        thrown.expect(InvalidSessionException.class);
+
+        try {
+            txn.commit();
+        } finally {
+            Assert.assertTrue(txn.isClosed.get());
+        }
+    }
+
+    @Test
+    public void testCommitExceptionAbortSuccessful() {
+        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+                .thenThrow(new AmazonClientException(""));
+        thrown.expect(AmazonClientException.class);
+
+        try {
+            txn.commit();
+        } finally {
+            Assert.assertTrue(txn.isClosed.get());
+        }
+    }
+
+    @Test
+    public void testCommitExceptionAbortException() {
+        final AmazonClientException ace1 = new AmazonClientException("1");
+        final AmazonClientException ace2 = new AmazonClientException("2");
+
+        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any())).thenThrow(ace1);
+        Mockito.when(mockSession.sendAbort()).thenThrow(ace2);
+
+        thrown.expect(AmazonClientException.class);
+
+        try {
+            txn.commit();
+        } catch (AmazonClientException ace) {
+            Assert.assertEquals(ace, ace1);
+            throw ace;
+        } finally {
+            Assert.assertTrue(txn.isClosed.get());
+        }
+    }
+
+    @Test
     public void testExecuteAfterCommit() {
         testCommit();
+
+        thrown.expect(IllegalStateException.class);
+
         executeQuery("stmtQuery", 1);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testExecuteWithParametersAfterCommit() {
         testCommit();
+
+        thrown.expect(IllegalStateException.class);
+
         testExecuteWithParams();
     }
 
@@ -145,9 +246,12 @@ public class TestTransactionImpl {
         executeQuery("stmtQuery2", 2);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testExecuteCommitExecute() {
         testCommit();
+
+        thrown.expect(IllegalStateException.class);
+
         executeQuery("stmtQuery2", 2);
     }
 
@@ -170,22 +274,39 @@ public class TestTransactionImpl {
         Assert.assertEquals(txnId, idCaptor.getValue());
     }
 
-    @Test(expected = OccConflictException.class)
+    @Test
     public void testExecuteWithOccConflict() {
         final String query = "stmtQuery";
         Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
                 ArgumentMatchers.anyString())).thenThrow(new OccConflictException(""));
+
+        thrown.expect(OccConflictException.class);
+
         txn.execute(query);
     }
 
-    @Test(expected = OccConflictException.class)
+    @Test
     public void testExecuteParamsWithOccConflict() {
         final String query = "stmtQuery";
         final List<IonValue> params = Collections.singletonList(system.singleValue("myValue"));
         Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
                 ArgumentMatchers.anyString())).thenThrow(new OccConflictException(""));
 
+        thrown.expect(OccConflictException.class);
+
         txn.execute(query, params);
+    }
+
+    @Test
+    public void testExecuteWithInvalidSession() {
+        final String query = "stmtQuery";
+        final List<IonValue> params = Collections.singletonList(system.singleValue("myValue"));
+        Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+                ArgumentMatchers.anyString())).thenThrow(new InvalidSessionException(""));
+
+        thrown.expect(InvalidSessionException.class);
+
+        txn.execute(query);
     }
 
     private void executeQuery(String query, int numExecutes) {
@@ -195,7 +316,8 @@ public class TestTransactionImpl {
         final ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         final ArgumentCaptor<List> paramCaptor = ArgumentCaptor.forClass(List.class);
         final ArgumentCaptor<String> idCaptor = ArgumentCaptor.forClass(String.class);
-        verify(mockSession, times(numExecutes)).sendExecute(queryCaptor.capture(), paramCaptor.capture(), idCaptor.capture());
+        verify(mockSession, times(numExecutes)).sendExecute(queryCaptor.capture(), paramCaptor.capture(),
+                idCaptor.capture());
         Assert.assertEquals(query, queryCaptor.getValue());
         Assert.assertTrue(paramCaptor.getValue().isEmpty());
         Assert.assertEquals(txnId, idCaptor.getValue());

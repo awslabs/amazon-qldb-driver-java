@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -12,27 +12,28 @@
  */
 package software.amazon.qldb;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
-
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.qldbsession.model.Page;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
 
 public class TestStreamResult {
     private static final IonSystem SYSTEM = IonSystemBuilder.standard().build();
@@ -49,6 +50,9 @@ public class TestStreamResult {
 
     @Mock
     private Page mockPage;
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Before
     public void init() {
@@ -88,13 +92,16 @@ public class TestStreamResult {
         Assert.assertTrue(itr.hasNext());
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void testIteratorRetrieveTwice() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         final StreamResult streamResult = new StreamResult(
                 mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
 
         streamResult.iterator();
+
+        thrown.expect(IllegalStateException.class);
+
         streamResult.iterator();
     }
 
@@ -121,17 +128,20 @@ public class TestStreamResult {
         Assert.assertEquals(expectedString, result);
     }
 
-    @Test(expected = NoSuchElementException.class)
+    @Test
     public void testIteratorNextWhenTerminal() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         final StreamResult streamResult = new StreamResult(
                 mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
+
+        thrown.expect(NoSuchElementException.class);
+
         itr.next();
     }
 
-    @Test(expected = AmazonClientException.class)
+    @Test
     public void testIteratorNextRaisesException() throws IOException {
         final AmazonClientException exception = new AmazonClientException("mockMessage");
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
@@ -142,6 +152,9 @@ public class TestStreamResult {
                 mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
+
+        thrown.expect(AmazonClientException.class);
+
         try {
             itr.next();
             itr.next();

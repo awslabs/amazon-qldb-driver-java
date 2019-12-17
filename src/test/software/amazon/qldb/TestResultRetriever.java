@@ -1,10 +1,10 @@
 /*
- * Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
  *
- * http://aws.amazon.com/apache2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
@@ -13,26 +13,28 @@
 
 package software.amazon.qldb;
 
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
+import com.amazon.ion.system.IonSystemBuilder;
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.qldbsession.model.FetchPageResult;
+import com.amazonaws.services.qldbsession.model.Page;
+import com.amazonaws.services.qldbsession.model.ValueHolder;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
+import software.amazon.qldb.exceptions.QldbClientException;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
-
-import com.amazon.ion.IonSystem;
-import com.amazon.ion.IonValue;
-import com.amazon.ion.system.IonSystemBuilder;
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.qldbsession.model.Page;
-import com.amazonaws.services.qldbsession.model.ValueHolder;
-import software.amazon.qldb.exceptions.QldbClientException;
 
 public class TestResultRetriever {
     private static final int MOCK_READ_AHEAD = 2;
@@ -58,6 +60,12 @@ public class TestResultRetriever {
     @Mock
     private Page mockTerminalPage;
 
+    @Mock
+    private FetchPageResult mockFetchPage;
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
     @Before
     public void init() {
         MockitoAnnotations.initMocks(this);
@@ -65,7 +73,8 @@ public class TestResultRetriever {
         Mockito.when(mockPage.getValues()).thenReturn(MOCK_EMPTY_VALUES);
         Mockito.when(mockTerminalPage.getNextPageToken()).thenReturn(null);
         Mockito.when(mockTerminalPage.getValues()).thenReturn(MOCK_EMPTY_VALUES);
-        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockTerminalPage);
+        Mockito.when(mockFetchPage.getPage()).thenReturn(mockTerminalPage);
+        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockFetchPage);
     }
 
     private void initRetriever() {
@@ -73,16 +82,17 @@ public class TestResultRetriever {
                 ionSystem, null);
     }
 
-    @Test(expected = QldbClientException.class)
+    @Test
     public void testClosedRetriever() {
-        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockPage);
+        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockFetchPage);
         initRetriever();
         resultRetriever.close();
 
-        // Free up one space in read-ahead queue in order to attempt to fetch the next page while closed.
+        thrown.expect(QldbClientException.class);
+
+        // Fetch the next page while closed.
         resultRetriever.next();
-        // Take the exception out of the read-ahead queue.
-        resultRetriever.next();
+
     }
 
     @Test
@@ -110,10 +120,12 @@ public class TestResultRetriever {
         Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
     }
 
-    @Test(expected = NoSuchElementException.class)
+    @Test
     public void testNextWhenTerminal() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         initRetriever();
+
+        thrown.expect(NoSuchElementException.class);
 
         try {
             resultRetriever.next();
@@ -122,9 +134,12 @@ public class TestResultRetriever {
         }
     }
 
-    @Test(expected = NoSuchElementException.class)
+    @Test
     public void testNextRaisesNoSuchElementException() {
         initRetriever();
+
+        thrown.expect(NoSuchElementException.class);
+
         try {
             resultRetriever.next();
         } finally {
@@ -132,11 +147,13 @@ public class TestResultRetriever {
         }
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void testRunRaisesException() {
         final AmazonClientException exception = new AmazonClientException("");
         Mockito.doThrow(exception).when(mockSession).sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN);
         initRetriever();
+
+        thrown.expect(RuntimeException.class);
 
         try {
             resultRetriever.next();
@@ -159,7 +176,7 @@ public class TestResultRetriever {
         Assert.assertEquals(MOCK_ION_VALUE, result);
     }
 
-    @Test(expected = AmazonClientException.class)
+    @Test
     public void testGetNextResultRaisesException() {
         final AmazonClientException exception = new AmazonClientException("");
 
@@ -167,6 +184,8 @@ public class TestResultRetriever {
         initRetriever();
 
         Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
+
+        thrown.expect(AmazonClientException.class);
 
         try {
             resultRetriever.next();
