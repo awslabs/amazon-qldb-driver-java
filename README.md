@@ -652,7 +652,7 @@ For more information about how to use the driver for Java, please read the [Gett
 # Release Notes
 
 ### Release 1.0.2
-- Bump version of the AWS SDK to 11.1.649
+- Bump version of the AWS SDK to 1.11.649
 - Fix an issue that will make the driver throw an `InvalidSessionException` when executing a transaction. In the initial release of the driver, if a session becomes invalid while using the `PooledQldbSession`'s `execute` convenience methods, then the transaction will fail completely for the caller, as the `InvalidSessionException` is re-thrown. To prevent the caller from needing to write additional retry logic, the `execute` methods will now transparently replace an invalid session with a new one and retry the transaction but still be limited to the number of retries configured.
 
 ### Release 1.0.1
