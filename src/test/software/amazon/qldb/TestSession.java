@@ -32,6 +32,11 @@ import com.amazonaws.services.qldbsession.model.StartSessionResult;
 import com.amazonaws.services.qldbsession.model.StartTransactionRequest;
 import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,12 +50,6 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import software.amazon.qldb.exceptions.QldbClientException;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 public class TestSession {
     private static final String MOCK_LEDGER_NAME = "ledger";

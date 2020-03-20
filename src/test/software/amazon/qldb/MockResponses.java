@@ -23,7 +23,6 @@ import com.amazonaws.services.qldbsession.model.SendCommandResult;
 import com.amazonaws.services.qldbsession.model.StartSessionResult;
 import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;

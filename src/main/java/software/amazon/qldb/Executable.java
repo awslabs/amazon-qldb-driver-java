@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -15,32 +15,8 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import java.util.List;
-import software.amazon.qldb.exceptions.AbortException;
 
-/**
- * Transaction object used within lambda executions to provide a reduced view that allows only the operations that are
- * valid within the context of an active managed transaction.
- */
-public class TransactionExecutor implements Executable {
-    private final Transaction transaction;
-
-    /**
-     * Constructor.
-     *
-     * @param transaction
-     *              The transaction object the TransactionExecutor wraps.
-     */
-    public TransactionExecutor(Transaction transaction) {
-        this.transaction = transaction;
-    }
-
-    /**
-     * Abort the transaction and roll back any changes.
-     */
-    public void abort() {
-        throw new AbortException();
-    }
-
+public interface Executable {
     /**
      * Execute the statement against QLDB and retrieve the result.
      *
@@ -50,10 +26,7 @@ public class TransactionExecutor implements Executable {
      * @return The result of executing the statement.
      * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
-    @Override
-    public Result execute(String statement) {
-        return transaction.execute(statement);
-    }
+    Result execute(String statement);
 
     /**
      * Execute the statement using the specified parameters against QLDB and retrieve the result.
@@ -66,10 +39,7 @@ public class TransactionExecutor implements Executable {
      * @return The result of executing the statement.
      * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
-    @Override
-    public Result execute(String statement, List<IonValue> parameters) {
-        return transaction.execute(statement, parameters);
-    }
+    Result execute(String statement, List<IonValue> parameters);
 
     /**
      * Execute the statement using the specified parameters against QLDB and retrieve the result.
@@ -82,17 +52,5 @@ public class TransactionExecutor implements Executable {
      * @return The result of executing the statement.
      * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
-    @Override
-    public Result execute(String statement, IonValue... parameters) {
-        return transaction.execute(statement, parameters);
-    }
-
-    /**
-     * Get the ID of the current transaction.
-     *
-     * @return The ID of the current transaction.
-     */
-    public String getTransactionId() {
-        return transaction.getTransactionId();
-    }
+    Result execute(String statement, IonValue... parameters);
 }

@@ -19,6 +19,10 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.ClientConfigurationFactory;
 import com.amazonaws.services.qldbsession.AmazonQLDBSessionClientBuilder;
 import com.amazonaws.services.qldbsession.model.InvalidSessionException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,13 +30,9 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import static org.mockito.Mockito.times;
 import org.mockito.MockitoAnnotations;
 import software.amazon.qldb.exceptions.QldbClientException;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 public class TestPooledQldbDriver {
     private static final String LEDGER = "ledger";
@@ -40,11 +40,19 @@ public class TestPooledQldbDriver {
     private static final int TIMEOUT = 30000;
     private IonSystem system;
     private List<IonValue> ionList;
+    private PooledQldbDriver pooledQldbDriver;
+    private String statement;
 
     private final MockQldbSessionClient mockClient = new MockQldbSessionClient();
 
     @Mock
     private AmazonQLDBSessionClientBuilder mockBuilder;
+
+    @Mock
+    private RetryIndicator mockRetryIndicator;
+
+    @Mock
+    private QldbSession mockQldbSession;
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
@@ -53,8 +61,20 @@ public class TestPooledQldbDriver {
     public void init() {
         MockitoAnnotations.initMocks(this);
 
+        system = IonSystemBuilder.standard().build();
+        ionList  = new ArrayList<>(2);
+        ionList.add(system.newString("a"));
+        ionList.add(system.newString("b"));
+        statement = "select * from test";
+
         Mockito.when(mockBuilder.build()).thenReturn(mockClient);
         Mockito.when(mockBuilder.getClientConfiguration()).thenReturn(new ClientConfigurationFactory().getConfig());
+
+        pooledQldbDriver = PooledQldbDriver.builder()
+                .withSessionClientBuilder(mockBuilder)
+                .withLedger(LEDGER)
+                .withPoolLimit(POOL_LIMIT)
+                .build();
     }
 
     // This is a test for PooledQldbDriverBuilder
@@ -172,6 +192,116 @@ public class TestPooledQldbDriver {
         finally {
             Assert.assertTrue(mockClient.isQueueEmpty());
         }
+    }
+
+    @Test
+    public void TestExecuteWithStatement() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.when(mockQldbSession.execute(statement)).thenReturn(null);
+
+        Assert.assertEquals(driverSpy.execute(statement), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(statement);
+    }
+
+    @Test
+    public void TestExecuteWithStatementAndRetry() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.when(mockQldbSession.execute(statement, mockRetryIndicator)).thenReturn(null);
+
+        Assert.assertEquals(driverSpy.execute(statement, mockRetryIndicator), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(statement, mockRetryIndicator);
+    }
+
+    @Test
+    public void TestExecuteWithStatementAndListParameters() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.when(mockQldbSession.execute(statement, ionList)).thenReturn(null);
+
+        Assert.assertEquals(driverSpy.execute(statement, ionList), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(statement, ionList);
+    }
+
+    @Test
+    public void TestExecuteWithStatementAndListParametersAndRetry() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.when(mockQldbSession.execute(statement, mockRetryIndicator, ionList)).thenReturn(null);
+
+        Assert.assertEquals(driverSpy.execute(statement, mockRetryIndicator, ionList), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(statement, mockRetryIndicator, ionList);
+    }
+
+
+    @Test
+    public void TestExecuteWithStatementAndArgParameters() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.when(mockQldbSession.execute(statement, ionList.get(0), ionList.get(1))).thenReturn(null);
+
+        Assert.assertEquals(driverSpy.execute(statement, ionList.get(0), ionList.get(1)), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(statement, ionList.get(0), ionList.get(1));
+    }
+
+    @Test
+    public void TestExecuteWithStatementAndArgParametersAndRetry() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.when(mockQldbSession.execute(statement, mockRetryIndicator, ionList.get(0), ionList.get(1))).thenReturn(null);
+
+        Assert.assertEquals(driverSpy.execute(statement, mockRetryIndicator, ionList.get(0), ionList.get(1)), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(statement, mockRetryIndicator, ionList.get(0), ionList.get(1));
+    }
+
+    @Test
+    public void TestExecuteWithLambdaWithNoReturnValue() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        driverSpy.execute(Mockito.mock(Executor.class));
+
+        Mockito.verify(mockQldbSession, times(1)).execute(Mockito.any(Executor.class));
+    }
+
+    @Test
+    public void TestExecuteWithLambdaWithNoReturnValueAndRetry() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        driverSpy.execute(Mockito.mock(Executor.class), mockRetryIndicator);
+
+        Mockito.verify(mockQldbSession, times(1)).execute(Mockito.any(Executor.class), Mockito.eq(mockRetryIndicator));
+    }
+
+    @Test
+    public void TestExecuteWithLambdaWithReturnValue() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.doReturn(null).when(mockQldbSession).execute(Mockito.mock(Executor.class));
+
+        Assert.assertEquals(driverSpy.execute(Mockito.mock(Executor.class)), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(Mockito.any(Executor.class));
+    }
+
+    @Test
+    public void TestExecuteWithLambdaWithReturnValueAndRetry() {
+        PooledQldbDriver driverSpy = Mockito.spy(pooledQldbDriver);
+
+        Mockito.doReturn(mockQldbSession).when(driverSpy).getSession();
+        Mockito.doReturn(null).when(mockQldbSession).execute(Mockito.mock(Executor.class), mockRetryIndicator);
+
+        Assert.assertEquals(driverSpy.execute(Mockito.mock(Executor.class), mockRetryIndicator), null);
+        Mockito.verify(mockQldbSession, times(1)).execute(Mockito.any(Executor.class), Mockito.eq(mockRetryIndicator));
+
     }
 
     @Test
@@ -310,11 +440,6 @@ public class TestPooledQldbDriver {
 
     @Test
     public void testReleaseSession() throws IOException {
-        system = IonSystemBuilder.standard().build();
-        ionList  = new ArrayList<>(2);
-        ionList.add(system.newString("a"));
-        ionList.add(system.newString("b"));
-
         mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
         mockClient.queueResponse(MockResponses.startTxnResponse("id"));
         mockClient.queueResponse(MockResponses.ABORT_RESPONSE);

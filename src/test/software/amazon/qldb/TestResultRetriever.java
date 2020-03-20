@@ -20,6 +20,11 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.qldbsession.model.FetchPageResult;
 import com.amazonaws.services.qldbsession.model.Page;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.NoSuchElementException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -29,12 +34,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.qldb.exceptions.QldbClientException;
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.NoSuchElementException;
 
 public class TestResultRetriever {
     private static final int MOCK_READ_AHEAD = 2;

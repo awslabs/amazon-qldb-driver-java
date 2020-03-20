@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazonaws.services.qldbsession.model.Page;
@@ -32,7 +33,7 @@ class ResultHolder<T> {
      * @param associatedValue
      *              The value associated with a result.
      */
-    public ResultHolder(final Page result, final T associatedValue) {
+    ResultHolder(final Page result, final T associatedValue) {
         this.result = result;
         this.associatedValue = associatedValue;
     }
@@ -45,7 +46,7 @@ class ResultHolder<T> {
      * @param result
      *              The result of the fetch that should be encapsulated.
      */
-    public ResultHolder(final Page result) {
+    ResultHolder(final Page result) {
         this.result = result;
         this.associatedValue = null;
     }
@@ -58,7 +59,7 @@ class ResultHolder<T> {
      * @param associatedValue
      *              The value associated with a result.
      */
-    public ResultHolder(final T associatedValue) {
+    ResultHolder(final T associatedValue) {
         this.result = null;
         this.associatedValue = associatedValue;
     }

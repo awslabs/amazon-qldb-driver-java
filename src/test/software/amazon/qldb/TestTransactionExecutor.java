@@ -16,6 +16,8 @@ import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import com.amazonaws.AmazonClientException;
+import java.util.Collections;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -27,9 +29,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.qldb.exceptions.AbortException;
-
-import java.util.Collections;
-import java.util.List;
 
 public class TestTransactionExecutor {
     private static final IonSystem system = IonSystemBuilder.standard().build();

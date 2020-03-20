@@ -10,21 +10,25 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.ThreadSafe;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbClientException;
 
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.AbortException;
+import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.QldbClientException;
 
 /**
  * <p>Represents a factory for accessing pooled sessions to a specific ledger within QLDB. This class or
@@ -46,7 +50,7 @@ import java.util.concurrent.TimeUnit;
  * <p>This object is thread-safe.</p>
  */
 @ThreadSafe
-public class PooledQldbDriver extends BaseSyncQldbDriver {
+public class PooledQldbDriver extends BaseSyncQldbDriver implements RetriableExecutable {
     private static final Logger logger = LoggerFactory.getLogger(PooledQldbDriver.class);
     private static final long DEFAULT_TIMEOUT_MS = 30000;
 
@@ -54,9 +58,9 @@ public class PooledQldbDriver extends BaseSyncQldbDriver {
     private final Semaphore poolPermits;
     private final BlockingQueue<QldbSessionImpl> pool;
 
-    protected PooledQldbDriver(String ledgerName, AmazonQLDBSession amazonQLDBSession, int retryLimit, int readAhead,
+    protected PooledQldbDriver(String ledgerName, AmazonQLDBSession amazonQldbSession, int retryLimit, int readAhead,
                                int poolLimit, long timeout, IonSystem ionSystem, ExecutorService executorService) {
-        super(ledgerName, amazonQLDBSession, retryLimit, readAhead, ionSystem, executorService);
+        super(ledgerName, amazonQldbSession, retryLimit, readAhead, ionSystem, executorService);
 
         this.timeout = timeout;
         this.poolPermits = new Semaphore(poolLimit, true);
@@ -82,6 +86,215 @@ public class PooledQldbDriver extends BaseSyncQldbDriver {
     }
 
     /**
+     * Execute the statement against QLDB and retrieve the result.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(statement);
+        }
+    }
+
+    /**
+     * Execute the statement against QLDB and retrieve the result.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(statement, retryIndicator);
+        }
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, List<IonValue> parameters) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(statement, parameters);
+        }
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator, List<IonValue> parameters) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(statement, retryIndicator, parameters);
+        }
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, IonValue... parameters) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(statement, parameters);
+        }
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator, IonValue... parameters) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(statement, retryIndicator, parameters);
+        }
+    }
+
+    /**
+     * Execute the Executor lambda against QLDB within a transaction where no result is expected.
+     *
+     * @param executor
+     *              A lambda with no return value representing the block of code to be executed within the transaction.
+     *              This cannot have any side effects as it may be invoked multiple times.
+     *
+     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public void execute(ExecutorNoReturn executor) {
+        try (QldbSession qldbSession = getSession()) {
+            qldbSession.execute(executor);
+        }
+    }
+
+    /**
+     * Execute the Executor lambda against QLDB within a transaction where no result is expected.
+     *
+     * @param executor
+     *              A lambda with no return value representing the block of code to be executed within the transaction.
+     *              This cannot have any side effects as it may be invoked multiple times.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     *
+     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public void execute(ExecutorNoReturn executor, RetryIndicator retryIndicator) {
+        try (QldbSession qldbSession = getSession()) {
+            qldbSession.execute(executor, retryIndicator);
+        }
+    }
+
+    /**
+     * Execute the Executor lambda against QLDB and retrieve the result within a transaction.
+     *
+     * @param executor
+     *              A lambda representing the block of code to be executed within the transaction. This cannot have any
+     *              side effects as it may be invoked multiple times, and the result cannot be trusted until the
+     *              transaction is committed.
+     *
+     * @return The return value of executing the executor. Note that if you directly return a {@link Result}, this will
+     *         be automatically buffered in memory before the implicit commit to allow reading, as the commit will close
+     *         any open results. Any other {@link Result} instances created within the executor block will be
+     *         invalidated, including if the return value is an object which nests said {@link Result} instances within
+     *         it.
+     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public <T> T execute(Executor<T> executor) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(executor);
+        }
+    }
+
+    /**
+     * Execute the Executor lambda against QLDB and retrieve the result within a transaction.
+     *
+     * @param executor
+     *              A lambda representing the block of code to be executed within the transaction. This cannot have any
+     *              side effects as it may be invoked multiple times, and the result cannot be trusted until the
+     *              transaction is committed.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     *
+     * @return The return value of executing the executor. Note that if you directly return a {@link Result}, this will
+     *         be automatically buffered in memory before the implicit commit to allow reading, as the commit will close
+     *         any open results. Any other {@link Result} instances created within the executor block will be
+     *         invalidated, including if the return value is an object which nests said {@link Result} instances within
+     *         it.
+     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws IllegalStateException if this driver has been closed.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public <T> T execute(Executor<T> executor, RetryIndicator retryIndicator) {
+        try (QldbSession qldbSession = getSession()) {
+            return qldbSession.execute(executor, retryIndicator);
+        }
+    }
+
+    /**
      * <p>Get a {@link QldbSession} object.</p>
      *
      * <p>This will attempt to retrieve an active existing session, or it will start a new session with QLDB unless the
@@ -92,7 +305,7 @@ public class PooledQldbDriver extends BaseSyncQldbDriver {
      *
      * @throws IllegalStateException if this driver has been closed.
      * @throws QldbClientException if a timeout is reached while attempting to retrieve a session.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
+     * @throws com.amazonaws.AmazonClientException if there is an error starting a session to QLDB.
      */
     public QldbSession getSession() {
         if (isClosed.get()) {

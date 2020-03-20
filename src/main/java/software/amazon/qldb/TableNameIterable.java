@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonReader;
@@ -17,11 +18,10 @@ import com.amazon.ion.IonType;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonReaderBuilder;
 import com.amazonaws.annotation.NotThreadSafe;
+import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.Errors;
-
-import java.util.Iterator;
 
 /**
  * Iterable class to create an iterator over a result representing the list of tables within a ledger.

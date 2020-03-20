@@ -10,23 +10,23 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.NotThreadSafe;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
-
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
 
 /**
  * Represents a pooled session object. See {@link QldbSessionImpl} for more details.
  */
 @NotThreadSafe
-final class PooledQldbSession implements QldbSession {
+final class PooledQldbSession implements QldbSession, RetriableExecutable {
     private static final Logger logger = LoggerFactory.getLogger(PooledQldbSession.class);
 
     private final QldbSessionImpl session;
@@ -57,8 +57,28 @@ final class PooledQldbSession implements QldbSession {
     }
 
     @Override
+    public Result execute(String statement, RetryIndicator retryIndicator) {
+        return invokeOnSession(() -> session.execute(statement, retryIndicator));
+    }
+
+    @Override
     public Result execute(String statement, List<IonValue> parameters) {
         return invokeOnSession(() -> session.execute(statement, parameters));
+    }
+
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator, List<IonValue> parameters) {
+        return invokeOnSession(() -> session.execute(statement, retryIndicator, parameters));
+    }
+
+    @Override
+    public Result execute(String statement, IonValue... parameters) {
+        return invokeOnSession(() -> session.execute(statement, parameters));
+    }
+
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator, IonValue... parameters) {
+        return invokeOnSession(() -> session.execute(statement, retryIndicator, parameters));
     }
 
     @Override
@@ -78,12 +98,12 @@ final class PooledQldbSession implements QldbSession {
     }
 
     @Override
-    public <T extends Object> T execute(Executor<T> executor) {
+    public <T> T execute(Executor<T> executor) {
         return invokeOnSession(() -> session.execute(executor));
     }
 
     @Override
-    public <T extends Object> T execute(Executor<T> executor, RetryIndicator retryIndicator) {
+    public <T> T execute(Executor<T> executor, RetryIndicator retryIndicator) {
         return invokeOnSession(() -> session.execute(executor, retryIndicator));
     }
 
@@ -116,7 +136,7 @@ final class PooledQldbSession implements QldbSession {
      * @return The result of the function call to the session.
      * @throws IllegalStateException if this session is closed.
      */
-    private <T extends Object> T invokeOnSession(Supplier<T> sessionFunction) {
+    private <T> T invokeOnSession(Supplier<T> sessionFunction) {
         throwIfClosed();
         return sessionFunction.get();
     }

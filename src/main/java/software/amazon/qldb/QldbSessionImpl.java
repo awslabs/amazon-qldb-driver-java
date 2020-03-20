@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
@@ -21,16 +22,16 @@ import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
 import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import com.amazonaws.util.ValidationUtils;
+import java.net.SocketTimeoutException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
 import org.apache.http.HttpStatus;
 import org.apache.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.AbortException;
-
-import java.net.SocketTimeoutException;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Represents a session to a specific ledger within QLDB, allowing for execution of PartiQL statements and
@@ -41,9 +42,10 @@ import java.util.concurrent.ExecutorService;
  * transaction.
  *
  * There are three methods of execution, ranging from simple to complex:
- *  - {@link #execute(String)} and {@link #execute(String, List)} allow for a single statement to be executed within a
- *    transaction where the transaction is implicitly created and committed, and any recoverable errors are
- *    transparently handled.
+ *  - {@link #execute(String, RetryIndicator, List)} and {@link #execute(String, RetryIndicator, IonValue...)} allow
+ *    for a single statement to be executed within a transaction where the transaction is implicitly created and
+ *    committed, and any recoverable errors are transparently handled. Each parameter besides the statement string
+ *    have overloaded method variants where they are not necessary.
  *  - {@link #execute(Executor, RetryIndicator)} and {@link #execute(ExecutorNoReturn, RetryIndicator)} allow for
  *    more complex execution sequences where more than one execution can occur, as well as other method calls. The
  *    transaction is implicitly created and committed, and any recoverable errors are transparently handled.
@@ -87,7 +89,7 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      * on a check within the statement itself, this may lead to unexpected results.
      *
      * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
-     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSessionImpl can become valid
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
      * again despite a previous InvalidSessionException originating from other function calls on this object, or any
      * child {@link Transaction} and {@link Result} objects, when this function is invoked.
      *
@@ -95,13 +97,46 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      *              The PartiQL statement to be executed against QLDB.
      *
      * @return The result of executing the statement.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
-     *                               digest does not match the response from QLDB.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
+     *                               does not match the response from QLDB.
      * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement) {
         return execute(statement, Collections.emptyList());
+    }
+
+    /**
+     * Execute the statement against QLDB and retrieve the result.
+     *
+     * The execution occurs within a transaction which is implicitly committed, and any recoverable errors, including
+     * OCC conflicts, are handled by starting a new transaction and re-executing the statement up to the retry limit
+     * amount of times.
+     *
+     * As this function automatically retries on recoverable errors, if the statement is not idempotent or conditional
+     * on a check within the statement itself, this may lead to unexpected results.
+     *
+     * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
+     * again despite a previous InvalidSessionException originating from other function calls on this object, or any
+     * child {@link Transaction} and {@link Result} objects, when this function is invoked.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
+     *                               does not match the response from QLDB.
+     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator) {
+        return execute(statement, retryIndicator, Collections.emptyList());
     }
 
     /**
@@ -115,7 +150,7 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      * on a check within the statement itself, this may lead to unexpected results.
      *
      * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
-     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSessionImpl can become valid
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
      * again despite a previous InvalidSessionException originating from other function calls on this object, or any
      * child {@link Transaction} and {@link Result} objects, when this function is invoked.
      *
@@ -125,9 +160,10 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
-     *                               digest does not match the response from QLDB.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
+     *                               does not match the response from QLDB.
      * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement, List<IonValue> parameters) {
@@ -135,6 +171,109 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
         ValidationUtils.assertNotNull(parameters, "parameters");
 
         return execute(txn -> { return txn.execute(statement, parameters); }, null);
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * The execution occurs within a transaction which is implicitly committed, and any recoverable errors, including
+     * OCC conflicts, are handled by starting a new transaction and re-executing the statement up to the retry limit
+     * amount of times.
+     *
+     * As this function automatically retries on recoverable errors, if the statement is not idempotent or conditional
+     * on a check within the statement itself, this may lead to unexpected results.
+     *
+     * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
+     * again despite a previous InvalidSessionException originating from other function calls on this object, or any
+     * child {@link Transaction} and {@link Result} objects, when this function is invoked.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
+     *                               does not match the response from QLDB.
+     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator, List<IonValue> parameters) {
+        return execute(txn -> { return txn.execute(statement, parameters); }, retryIndicator);
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * The execution occurs within a transaction which is implicitly committed, and any recoverable errors, including
+     * OCC conflicts, are handled by starting a new transaction and re-executing the statement up to the retry limit
+     * amount of times.
+     *
+     * As this function automatically retries on recoverable errors, if the statement is not idempotent or conditional
+     * on a check within the statement itself, this may lead to unexpected results.
+     *
+     * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
+     * again despite a previous InvalidSessionException originating from other function calls on this object, or any
+     * child {@link Transaction} and {@link Result} objects, when this function is invoked.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
+     *                               digest does not match the response from QLDB.
+     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, IonValue... parameters) {
+        ValidationUtils.assertNotNull(parameters, "parameters");
+
+        return execute(statement, Arrays.asList(parameters));
+    }
+
+    /**
+     * Execute the statement using the specified parameters against QLDB and retrieve the result.
+     *
+     * The execution occurs within a transaction which is implicitly committed, and any recoverable errors, including
+     * OCC conflicts, are handled by starting a new transaction and re-executing the statement up to the retry limit
+     * amount of times.
+     *
+     * As this function automatically retries on recoverable errors, if the statement is not idempotent or conditional
+     * on a check within the statement itself, this may lead to unexpected results.
+     *
+     * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
+     * again despite a previous InvalidSessionException originating from other function calls on this object, or any
+     * child {@link Transaction} and {@link Result} objects, when this function is invoked.
+     *
+     * @param statement
+     *              The PartiQL statement to be executed against QLDB.
+     * @param retryIndicator
+     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
+     *              error. Can be null if not applicable.
+     * @param parameters
+     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
+     *
+     * @return The result of executing the statement.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
+     *                               digest does not match the response from QLDB.
+     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     */
+    @Override
+    public Result execute(String statement, RetryIndicator retryIndicator, IonValue... parameters) {
+        ValidationUtils.assertNotNull(parameters, "parameters");
+
+        return execute(statement, retryIndicator, Arrays.asList(parameters));
     }
 
     /**
@@ -148,7 +287,7 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      * on a check within the executor, this may lead to unexpected results.
      *
      * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
-     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSessionImpl can become valid
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
      * again despite a previous InvalidSessionException originating from other function calls on this object, or any
      * child {@link Transaction} and {@link Result} objects, when this function is invoked.
      *
@@ -157,9 +296,10 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      *              This cannot have any side effects as it may be invoked multiple times.
      *
      * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
      *                               digest does not match the response from QLDB.
      * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
     @Override
     public void execute(ExecutorNoReturn executor) {
@@ -177,7 +317,7 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      * on a check within the executor, this may lead to unexpected results.
      *
      * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
-     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSessionImpl can become valid
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
      * again despite a previous InvalidSessionException originating from other function calls on this object, or any
      * child {@link Transaction} and {@link Result} objects, when this function is invoked.
      *
@@ -189,9 +329,10 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      *              error. Can be null if not applicable.
      *
      * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
      *                               digest does not match the response from QLDB.
      * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
     @Override
     public void execute(ExecutorNoReturn executor, RetryIndicator retryIndicator) {
@@ -214,7 +355,7 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      * on a check within the executor, this may lead to unexpected results.
      *
      * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
-     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSessionImpl can become valid
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
      * again despite a previous InvalidSessionException originating from other function calls on this object, or any
      * child {@link Transaction} and {@link Result} objects, when this function is invoked.
      *
@@ -229,12 +370,13 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      *         invalidated, including if the return value is an object which nests said {@link Result} instances within
      *         it.
      * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
      *                               digest does not match the response from QLDB.
      * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
     @Override
-    public <T extends Object> T execute(Executor<T> executor) {
+    public <T> T execute(Executor<T> executor) {
         return execute(executor, null);
     }
 
@@ -249,7 +391,7 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      * on a check within the executor, this may lead to unexpected results.
      *
      * If an {@link InvalidSessionException} is caught, it is considered a retriable exception by starting a new
-     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSessionImpl can become valid
+     * {@link Session} to use for communicating with QLDB. Thus, as a side effect, this QldbSession can become valid
      * again despite a previous InvalidSessionException originating from other function calls on this object, or any
      * child {@link Transaction} and {@link Result} objects, when this function is invoked.
      *
@@ -267,12 +409,13 @@ class QldbSessionImpl extends BaseQldbSession implements QldbSession {
      *         invalidated, including if the return value is an object which nests said {@link Result} instances within
      *         it.
      * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
      *                               digest does not match the response from QLDB.
      * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
+     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
      */
     @Override
-    public <T extends Object> T execute(Executor<T> executor, RetryIndicator retryIndicator) {
+    public <T> T execute(Executor<T> executor, RetryIndicator retryIndicator) {
         throwIfClosed();
         ValidationUtils.assertNotNull(executor, "executor");
 

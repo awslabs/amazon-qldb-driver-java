@@ -22,6 +22,9 @@ import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
 import com.amazonaws.services.qldbsession.model.Page;
 import com.amazonaws.services.qldbsession.model.StartTransactionResult;
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -31,14 +34,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
-
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import org.mockito.MockitoAnnotations;
 
 public class TestTransactionImpl {
     private static final IonSystem system = IonSystemBuilder.standard().build();

@@ -20,17 +20,6 @@ import com.amazonaws.services.qldbsession.model.AmazonQLDBSessionException;
 import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
 import com.amazonaws.services.qldbsession.model.RateExceededException;
-import org.apache.http.HttpStatus;
-import org.apache.http.NoHttpResponseException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import software.amazon.qldb.exceptions.AbortException;
-
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
@@ -41,9 +30,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
+import org.apache.http.HttpStatus;
+import org.apache.http.NoHttpResponseException;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import org.mockito.MockitoAnnotations;
+import software.amazon.qldb.exceptions.AbortException;
 
 public class TestQldbSession {
     private static final String LEDGER = "myLedger";
@@ -57,7 +55,7 @@ public class TestQldbSession {
     private Session mockSession;
 
     @Mock
-    private RetryIndicator retryIndicator;
+    private RetryIndicator mockRetryIndicator;
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
@@ -224,10 +222,17 @@ public class TestQldbSession {
     }
 
     @Test
-    public void testExecuteWithNullParameters() {
+    public void testExecuteWithListNullParameters() {
         thrown.expect((IllegalArgumentException.class));
 
-        qldbSession.execute(statement, null);
+        qldbSession.execute(statement, (List<IonValue>) null);
+    }
+
+    @Test
+    public void testExecuteWithVargNullParameters() {
+        thrown.expect((IllegalArgumentException.class));
+
+        qldbSession.execute(statement, (IonValue[]) null);
     }
 
     @Test
@@ -240,11 +245,77 @@ public class TestQldbSession {
     }
 
     @Test
-    public void testExecuteWithStatementAndParameters() throws IOException {
+    public void testExecuteWithStatementAndRetry() throws IOException {
+        queueTxnExecCommit(ionList, statement, Collections.emptyList());
+        final Result result = qldbSession.execute(statement, mockRetryIndicator);
+
+        verify(mockRetryIndicator, times(0)).onRetry(0);
+        final Iterator<IonValue> resultIterator = result.iterator();
+        final Iterator<IonValue> ionListIterator = ionList.iterator();
+        compareIterators(ionListIterator, resultIterator);
+    }
+
+    @Test
+    public void testExecuteWithStatementAndListParameters() throws IOException {
         queueTxnExecCommit(ionList, statement, ionList);
         final Result result = qldbSession.execute(statement, ionList);
         final Iterator<IonValue> resultIterator = result.iterator();
         final Iterator<IonValue> ionListIterator = ionList.iterator();
+        compareIterators(ionListIterator, resultIterator);
+    }
+
+    @Test
+    public void testExecuteWithStatementAndListParametersAndRetry() throws IOException {
+        queueTxnExecCommit(ionList, statement, ionList);
+        final Result result = qldbSession.execute(statement, mockRetryIndicator, ionList);
+
+        verify(mockRetryIndicator, times(0)).onRetry(0);
+        final Iterator<IonValue> resultIterator = result.iterator();
+        final Iterator<IonValue> ionListIterator = ionList.iterator();
+        compareIterators(ionListIterator, resultIterator);
+    }
+
+    @Test
+    public void testExecuteWithStatementAndEmptyArgParameters() throws IOException {
+        final IonValue[] ionParameters = new IonValue[0];
+        final List<IonValue> emptyIonList = Collections.emptyList();
+        queueTxnExecCommit(emptyIonList, statement, emptyIonList);
+        final Result result = qldbSession.execute(statement, ionParameters);
+        final Iterator<IonValue> resultIterator = result.iterator();
+        final Iterator<IonValue> ionListIterator = emptyIonList.iterator();
+        compareIterators(ionListIterator, resultIterator);
+    }
+
+    @Test
+    public void testExecuteWithStatementAndOneArgParameters() throws IOException {
+        final List<IonValue> singleValIonList = new ArrayList<>();
+        singleValIonList.add(system.newString("a"));
+        queueTxnExecCommit(singleValIonList, statement, singleValIonList);
+        final Result result = qldbSession.execute(statement, singleValIonList.get(0));
+        final Iterator<IonValue> resultIterator = result.iterator();
+        final Iterator<IonValue> ionListIterator = singleValIonList.iterator();
+        compareIterators(ionListIterator, resultIterator);
+    }
+
+    @Test
+    public void testExecuteWithStatementAndManyArgParameters() throws IOException {
+        queueTxnExecCommit(ionList, statement, ionList);
+        final Result result = qldbSession.execute(statement, ionList.get(0), ionList.get(1));
+        final Iterator<IonValue> resultIterator = result.iterator();
+        final Iterator<IonValue> ionListIterator = ionList.iterator();
+        compareIterators(ionListIterator, resultIterator);
+    }
+
+    @Test
+    public void testExecuteWithStatementAndArgParametersAndRetry() throws IOException {
+        final List<IonValue> singleValIonList = new ArrayList<>();
+        singleValIonList.add(system.newString("a"));
+        queueTxnExecCommit(singleValIonList, statement, singleValIonList);
+        final Result result = qldbSession.execute(statement, mockRetryIndicator, singleValIonList.get(0));
+
+        verify(mockRetryIndicator, times(0)).onRetry(0);
+        final Iterator<IonValue> resultIterator = result.iterator();
+        final Iterator<IonValue> ionListIterator = singleValIonList.iterator();
         compareIterators(ionListIterator, resultIterator);
     }
 
@@ -276,8 +347,8 @@ public class TestQldbSession {
 
         qldbSession.execute(txnExecutor -> {
             Result result = txnExecutor.execute(statement);
-        }, retryIndicator);
-        verify(retryIndicator, times(0)).onRetry(0);
+        }, mockRetryIndicator);
+        verify(mockRetryIndicator, times(0)).onRetry(0);
     }
 
     @Test
@@ -303,12 +374,12 @@ public class TestQldbSession {
         try {
             qldbSession.execute(txnExecutor -> {
                 Result result = txnExecutor.execute(statement);
-            }, retryIndicator);
+            }, mockRetryIndicator);
         } finally {
-            verify(retryIndicator, times(1)).onRetry(1);
-            verify(retryIndicator, times(1)).onRetry(2);
-            verify(retryIndicator, times(1)).onRetry(RETRY_LIMIT);
-            verify(retryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(1)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
         }
     }
 
@@ -332,11 +403,11 @@ public class TestQldbSession {
         try {
             qldbSession.execute(txnExecutor -> {
                 Result result = txnExecutor.execute(statement);
-            }, retryIndicator);
+            }, mockRetryIndicator);
         } finally {
-            verify(retryIndicator, times(1)).onRetry(1);
-            verify(retryIndicator, times(1)).onRetry(2);
-            verify(retryIndicator, times(0)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT);
         }
     }
 
@@ -353,12 +424,12 @@ public class TestQldbSession {
         try {
             qldbSession.execute(txnExecutor -> {
                 Result result = txnExecutor.execute(statement);
-            }, retryIndicator);
+            }, mockRetryIndicator);
         } finally {
-            verify(retryIndicator, times(1)).onRetry(1);
-            verify(retryIndicator, times(1)).onRetry(2);
-            verify(retryIndicator, times(1)).onRetry(RETRY_LIMIT);
-            verify(retryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(1)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
         }
     }
 
@@ -379,11 +450,11 @@ public class TestQldbSession {
         try {
             qldbSession.execute(txnExecutor -> {
                 Result result = txnExecutor.execute(statement);
-            }, retryIndicator);
+            }, mockRetryIndicator);
         } finally {
-            verify(retryIndicator, times(1)).onRetry(1);
-            verify(retryIndicator, times(1)).onRetry(2);
-            verify(retryIndicator, times(0)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT);
         }
     }
 
@@ -399,12 +470,34 @@ public class TestQldbSession {
         try {
             qldbSession.execute(txnExecutor -> {
                 Result result = txnExecutor.execute(statement);
-            }, retryIndicator);
+            }, mockRetryIndicator);
         } finally {
-            verify(retryIndicator, times(1)).onRetry(1);
-            verify(retryIndicator, times(1)).onRetry(2);
-            verify(retryIndicator, times(1)).onRetry(RETRY_LIMIT);
-            verify(retryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(1)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
+        }
+    }
+
+    @Test
+    public void testExecuteExecutorLambdaWithInvalidSessionExceptionsExceedRetry() throws IOException {
+        for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
+            final InvalidSessionException exception = new InvalidSessionException("");
+            queueTxnExecError(exception);
+            client.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        }
+
+        thrown.expect(InvalidSessionException.class);
+
+        try {
+            qldbSession.execute(txnExecutor -> {
+                Result result = txnExecutor.execute(statement);
+            }, mockRetryIndicator);
+        } finally {
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(1)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
         }
     }
 
@@ -417,8 +510,8 @@ public class TestQldbSession {
 
         qldbSession.execute(txnExecutor -> {
             Result result = txnExecutor.execute(statement);
-        }, retryIndicator);
-        verify(retryIndicator, times(1)).onRetry(1);
+        }, mockRetryIndicator);
+        verify(mockRetryIndicator, times(1)).onRetry(1);
     }
 
 
@@ -429,9 +522,9 @@ public class TestQldbSession {
         final Result result = qldbSession.execute(txnExecutor -> {
             Result res = txnExecutor.execute(statement);
             return new BufferedResult(res);
-        }, retryIndicator);
+        }, mockRetryIndicator);
 
-        verify(retryIndicator, times(0)).onRetry(0);
+        verify(mockRetryIndicator, times(0)).onRetry(0);
         final Iterator<IonValue> resultIterator = result.iterator();
         final Iterator<IonValue> ionListIterator = ionList.iterator();
         compareIterators(ionListIterator, resultIterator);
@@ -463,12 +556,12 @@ public class TestQldbSession {
             qldbSession.execute(txnExecutor -> {
                 Result res = txnExecutor.execute(statement);
                 return new BufferedResult(res);
-            }, retryIndicator);
+            }, mockRetryIndicator);
         } finally {
-            verify(retryIndicator, times(1)).onRetry(1);
-            verify(retryIndicator, times(1)).onRetry(2);
-            verify(retryIndicator, times(1)).onRetry(RETRY_LIMIT);
-            verify(retryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
+            verify(mockRetryIndicator, times(1)).onRetry(1);
+            verify(mockRetryIndicator, times(1)).onRetry(2);
+            verify(mockRetryIndicator, times(1)).onRetry(RETRY_LIMIT);
+            verify(mockRetryIndicator, times(0)).onRetry(RETRY_LIMIT + 1);
         }
     }
 
@@ -478,10 +571,10 @@ public class TestQldbSession {
 
         final Result result = qldbSession.execute(txnExecutor -> {
             return txnExecutor.execute(statement);
-        }, retryIndicator);
+        }, mockRetryIndicator);
 
         Assert.assertTrue(result instanceof BufferedResult);
-        verify(retryIndicator, times(0)).onRetry(0);
+        verify(mockRetryIndicator, times(0)).onRetry(0);
         final Iterator<IonValue> resultIterator = result.iterator();
         final Iterator<IonValue> ionListIterator = ionList.iterator();
         compareIterators(ionListIterator, resultIterator);
@@ -493,8 +586,8 @@ public class TestQldbSession {
 
         qldbSession.execute(txnExecutor -> {
             return txnExecutor.execute(statement);
-        }, retryIndicator);
-        verify(retryIndicator, times(0)).onRetry(0);
+        }, mockRetryIndicator);
+        verify(mockRetryIndicator, times(0)).onRetry(0);
     }
 
     @Test
@@ -505,9 +598,9 @@ public class TestQldbSession {
         final Result result = qldbSession.execute(txnExecutor -> {
             Result res = txnExecutor.execute(statement);
             return new BufferedResult(res);
-        }, retryIndicator);
+        }, mockRetryIndicator);
 
-        verify(retryIndicator, times(1)).onRetry(1);
+        verify(mockRetryIndicator, times(1)).onRetry(1);
         final Iterator<IonValue> resultIterator = result.iterator();
         final Iterator<IonValue> ionListIterator = ionList.iterator();
         compareIterators(ionListIterator, resultIterator);
@@ -556,8 +649,8 @@ public class TestQldbSession {
 
         thrown.expect(IllegalArgumentException.class);
 
-        qldbSession.execute(exec, retryIndicator);
-        verify(retryIndicator, times(0)).onRetry(0);
+        qldbSession.execute(exec, mockRetryIndicator);
+        verify(mockRetryIndicator, times(0)).onRetry(0);
     }
 
     @Test
@@ -573,9 +666,9 @@ public class TestQldbSession {
             BufferedResult bufferedResult = new BufferedResult(res);
             txnExecutor.abort();
             return bufferedResult;
-        }, retryIndicator);
+        }, mockRetryIndicator);
 
-        verify(retryIndicator, times(0)).onRetry(0);
+        verify(mockRetryIndicator, times(0)).onRetry(0);
     }
 
     @Test

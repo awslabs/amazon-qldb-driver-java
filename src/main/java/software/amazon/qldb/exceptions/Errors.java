@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb.exceptions;
 
 import java.util.ResourceBundle;
@@ -31,7 +32,7 @@ public enum Errors {
     TXN_CLOSED,
     TXN_DIGEST_MISMATCH;
 
-    private static final ResourceBundle messages = ResourceBundle.getBundle("errors");
+    private static final ResourceBundle MESSAGES = ResourceBundle.getBundle("errors");
 
     /**
      * Retrieve the localized error message associated with the enum value.
@@ -39,6 +40,6 @@ public enum Errors {
      * @return The associated localized error message.
      */
     public String get() {
-        return messages.getString(this.name());
+        return MESSAGES.getString(this.name());
     }
 }

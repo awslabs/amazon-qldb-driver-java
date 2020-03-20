@@ -10,25 +10,25 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.Errors;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The abstract base session to a specific ledger within QLDB, containing the properties and methods shared by the
  * asynchronous and synchronous implementations of a session to a specific ledger within QLDB.
  */
 abstract class BaseQldbSession {
+    static final String TABLE_NAME_QUERY =
+            "SELECT VALUE name FROM information_schema.user_tables WHERE status = 'ACTIVE'";
     private static final Logger logger = LoggerFactory.getLogger(BaseQldbSession.class);
     private static final long SLEEP_BASE_MS = 10;
     private static final long SLEEP_CAP_MS = 5000;
-    static final String TABLE_NAME_QUERY =
-            "SELECT VALUE name FROM information_schema.user_tables WHERE status = 'ACTIVE'";
 
     final int retryLimit;
     Session session;
