@@ -10,19 +10,19 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.NotThreadSafe;
 import com.amazonaws.services.qldbsession.model.Page;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
-
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
 
 /**
  * Result implementation which streams data from QLDB, discarding chunks as they are read.
@@ -57,7 +57,7 @@ class StreamResult extends BaseResult implements Result {
      * @param executorService
      *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
      */
-    public StreamResult(Session session, Page firstPage, String txnId, int readAheadBufferCount,
+    StreamResult(Session session, Page firstPage, String txnId, int readAheadBufferCount,
                         IonSystem ionSystem, ExecutorService executorService) {
         super(session, txnId, ionSystem);
         this.isRetrieved = new AtomicBoolean(false);

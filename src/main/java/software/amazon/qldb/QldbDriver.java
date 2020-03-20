@@ -10,16 +10,16 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazonaws.annotation.ThreadSafe;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
+import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.qldb.exceptions.Errors;
-
-import java.util.concurrent.ExecutorService;
 
 /**
  * <p>Represents a factory for accessing sessions to a specific ledger within QLDB. This class or
@@ -34,9 +34,9 @@ import java.util.concurrent.ExecutorService;
 public class QldbDriver extends BaseSyncQldbDriver {
     private static final Logger logger = LoggerFactory.getLogger(QldbDriver.class);
 
-    protected QldbDriver(String ledgerName, AmazonQLDBSession amazonQLDBSession, int occRetryLimit, int readAhead,
+    protected QldbDriver(String ledgerName, AmazonQLDBSession amazonQldbSession, int occRetryLimit, int readAhead,
                          IonSystem ionSystem, ExecutorService executorService) {
-        super(ledgerName, amazonQLDBSession, occRetryLimit, readAhead, ionSystem, executorService);
+        super(ledgerName, amazonQldbSession, occRetryLimit, readAhead, ionSystem, executorService);
     }
 
     /**
@@ -55,7 +55,7 @@ public class QldbDriver extends BaseSyncQldbDriver {
      *
      * @return The newly active {@link QldbSession} object.
      * @throws IllegalStateException if this driver has been closed.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
+     * @throws com.amazonaws.AmazonClientException if there is an error starting a session to QLDB.
      */
     public QldbSession getSession() {
         if (isClosed.get()) {

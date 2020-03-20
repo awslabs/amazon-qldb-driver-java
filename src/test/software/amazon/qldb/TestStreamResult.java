@@ -18,6 +18,12 @@ import com.amazon.ion.system.IonSystemBuilder;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.qldbsession.model.Page;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -27,13 +33,6 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
 
 public class TestStreamResult {
     private static final IonSystem SYSTEM = IonSystemBuilder.standard().build();

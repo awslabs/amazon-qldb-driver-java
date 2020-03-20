@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+  ~ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License").
   ~ You may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>software.amazon.qldb</groupId>
     <artifactId>amazon-qldb-driver-java</artifactId>
-    <version>1.0.2</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -28,9 +28,9 @@
     <url>https://aws.amazon.com/qldb/</url>
 
     <scm>
-        <connection>scm:git:https://github.com/awslabs/amazon-qldb-driver-java.git</connection>
-        <developerConnection>scm:git:git@github.com:awslabs/amazon-qldb-driver-java.git</developerConnection>
-        <url>https://github.com/awslabs/amazon-qldb-driver-java</url>
+        <connection>scm:git:https://github.com/aws/amazon-qldb-driver-java.git</connection>
+        <developerConnection>scm:git:git@github.com:aws/amazon-qldb-driver-java.git</developerConnection>
+        <url>https://github.com/aws/amazon-qldb-driver-java</url>
     </scm>
 
     <licenses>
@@ -54,7 +54,7 @@
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <url>https://aws.oss.sonatype.org/content/repositories/snapshots</url>
         </snapshotRepository>
         <repository>
             <id>ossrh</id>
@@ -68,6 +68,8 @@
         <build.year>${maven.build.timestamp}</build.year>
         <jdkVersion>1.8</jdkVersion>
         <awssdk.version>1.11.649</awssdk.version>
+        <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
+        <checkstyle.version>8.18</checkstyle.version>
     </properties>
 
     <dependencies>
@@ -204,6 +206,36 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${maven-checkstyle-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>${checkstyle.version}</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>checkstyle</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <configLocation>./checkstyle.xml</configLocation>
+                    <suppressionsLocation>./checkstyle-suppressions.xml</suppressionsLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <failsOnError>true</failsOnError>
+                    <logViolationsToConsole>true</logViolationsToConsole>
+                    <failOnViolation>true</failOnViolation>
+                    <excludes>**/module-info.java</excludes>
+                </configuration>
             </plugin>
             <!-- Static Site generation with all reports -->
             <plugin>
@@ -371,7 +403,7 @@
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>
-                            <nexusUrl>https://aws.oss.sonatype.org</nexusUrl>
+                            <nexusUrl>https://aws.oss.sonatype.org/</nexusUrl>
                             <autoReleaseAfterClose>false</autoReleaseAfterClose>
                         </configuration>
                     </plugin>

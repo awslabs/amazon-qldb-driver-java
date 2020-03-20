@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
@@ -18,11 +19,12 @@ import com.amazonaws.ClientConfigurationFactory;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
 import com.amazonaws.services.qldbsession.AmazonQLDBSessionClientBuilder;
 import com.amazonaws.util.ValidationUtils;
-
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 
+// CHECKSTYLE:OFF: ClassTypeParameterName - Using words instead capitalized characters for templates.
 abstract class BaseQldbDriverBuilder<Subclass extends BaseQldbDriverBuilder, TypeToBuild> {
+    // CHECKSTYLE:ON: ClassTypeParameterName
     private static final String VERSION_KEY = "project.version";
     private static final int DEFAULT_RETRY_LIMIT = 4;
     private static final IonSystem DEFAULT_ION_SYSTEM = IonSystemBuilder.standard().build();

@@ -10,9 +10,15 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 class Validate {
+
+    private Validate() {
+        throw new InstantiationError();
+    }
+
     static void assertIsAtLeastTwo(int num, String fieldName) {
         if (num < 2) {
             throw new IllegalArgumentException(String.format("%s must be 2 or greater. Given value: %d.", fieldName, num));
@@ -35,8 +41,8 @@ class Validate {
         assertIsNotNegative(poolLimit, fieldName);
         if (poolLimit > configurationLimit) {
             throw new IllegalArgumentException(
-                    String.format("%s must not exceed the amount set in the client builder's configuration of %d. Given value: %d.",
-                            fieldName, configurationLimit, poolLimit));
+                String.format("%s must not exceed the amount set in the client builder's configuration of %d. Given value: %d.",
+                        fieldName, configurationLimit, poolLimit));
         }
     }
 }

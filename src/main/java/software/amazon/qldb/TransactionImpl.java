@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
@@ -19,16 +20,17 @@ import com.amazonaws.annotation.NotThreadSafe;
 import com.amazonaws.services.qldbsession.model.ExecuteStatementResult;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
 import com.amazonaws.util.ValidationUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
+
 
 /**
  * Implementation of a QLDB transaction which also tracks child Results for the purposes of managing their lifecycle.
@@ -114,6 +116,13 @@ class TransactionImpl extends BaseTransaction implements Transaction {
                 readAheadBufferCount, ionSystem, executorService);
         results.add(result);
         return result;
+    }
+
+    @Override
+    public Result execute(String statement, IonValue... parameters) {
+        ValidationUtils.assertNotNull(parameters, "parameters");
+
+        return execute(statement, Arrays.asList(parameters));
     }
 
     /**

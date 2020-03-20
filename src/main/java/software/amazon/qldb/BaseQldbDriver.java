@@ -10,11 +10,11 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -32,7 +32,7 @@ abstract class BaseQldbDriver {
      *
      * @param ledgerName
      *                  The ledger to create sessions to.
-     * @param amazonQLDBSession
+     * @param amazonQldbSession
      *                  The low-level session used for communication with QLDB.
      * @param retryLimit
      *                  The amount of retries sessions created by this driver will attempt upon encountering a non-fatal
@@ -40,10 +40,10 @@ abstract class BaseQldbDriver {
      * @param ionSystem
      *                  The {@link IonSystem} sessions created by this driver will use.
      */
-    protected BaseQldbDriver(String ledgerName, AmazonQLDBSession amazonQLDBSession, int retryLimit,
+    protected BaseQldbDriver(String ledgerName, AmazonQLDBSession amazonQldbSession, int retryLimit,
                              IonSystem ionSystem) {
         this.ledgerName = ledgerName;
-        this.amazonQldbSession = amazonQLDBSession;
+        this.amazonQldbSession = amazonQldbSession;
         this.retryLimit = retryLimit;
         this.ionSystem = ionSystem;
         this.isClosed = new AtomicBoolean(false);

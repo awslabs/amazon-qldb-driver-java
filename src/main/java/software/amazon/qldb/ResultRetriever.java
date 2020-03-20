@@ -10,16 +10,12 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazonaws.services.qldbsession.model.Page;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbClientException;
-
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingDeque;
@@ -27,6 +23,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.QldbClientException;
 
 /**
  * Used to retrieve the results from QLDB, either asynchronously or synchronously.
@@ -64,7 +64,7 @@ class ResultRetriever {
      * @param executorService
      *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
      */
-    public ResultRetriever(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
+    ResultRetriever(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
                            ExecutorService executorService) {
         Validate.assertIsNotNegative(readAhead, "readAhead");
 
@@ -142,8 +142,8 @@ class ResultRetriever {
      */
     private static class Retriever {
         final Session session;
-        private final String txnId;
         String nextPageToken;
+        private final String txnId;
 
         /**
          * Constructor for creating the retriever for a specific session and result.
@@ -167,7 +167,7 @@ class ResultRetriever {
          * @return The next chunk of data from QLDB.
          * @throws QldbClientException if an unexpected error occurs during result retrieval.
          */
-         Page getNextPage() {
+        Page getNextPage() {
             final Page result = session.sendFetchPage(txnId, nextPageToken).getPage();
             nextPageToken = result.getNextPageToken();
             return result;

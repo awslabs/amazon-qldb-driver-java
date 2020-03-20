@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
@@ -29,7 +30,7 @@ abstract class BaseSyncQldbDriver extends BaseQldbDriver implements AutoCloseabl
      *
      * @param ledgerName
      *                  The ledger to create sessions to.
-     * @param amazonQLDBSession
+     * @param amazonQldbSession
      *                  The low-level session used for communication with QLDB.
      * @param retryLimit
      *                  The amount of retries sessions created by this driver will attempt upon encountering a non-fatal
@@ -42,9 +43,9 @@ abstract class BaseSyncQldbDriver extends BaseQldbDriver implements AutoCloseabl
      * @param executorService
      *                  The executor to be used by the retrieval thread if read-ahead is enabled.
      */
-    protected BaseSyncQldbDriver(String ledgerName, AmazonQLDBSession amazonQLDBSession, int retryLimit, int readAhead,
+    protected BaseSyncQldbDriver(String ledgerName, AmazonQLDBSession amazonQldbSession, int retryLimit, int readAhead,
                                  IonSystem ionSystem, ExecutorService executorService) {
-        super(ledgerName, amazonQLDBSession, retryLimit, ionSystem);
+        super(ledgerName, amazonQldbSession, retryLimit, ionSystem);
         this.readAhead = readAhead;
         this.executorService = executorService;
     }

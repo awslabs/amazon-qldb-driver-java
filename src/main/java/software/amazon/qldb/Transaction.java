@@ -10,13 +10,11 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
-import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.NotThreadSafe;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
-
-import java.util.List;
 
 /**
  * <p>Interface that represents an active transaction with QLDB.</p>
@@ -40,7 +38,7 @@ import java.util.List;
  * <p>Child Result objects will be closed when the transaction is aborted or committed.</p>
  */
 @NotThreadSafe
-public interface Transaction extends AutoCloseable {
+public interface Transaction extends AutoCloseable, Executable {
     /**
      * Abort the transaction and roll back any changes. Any open Results created by the transaction will be closed.
      *
@@ -66,32 +64,6 @@ public interface Transaction extends AutoCloseable {
      * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
      */
     void commit();
-
-    /**
-     * Execute the statement against QLDB and retrieve the result.
-     *
-     * @param statement
-     *              The PartiQL statement to be executed against QLDB.
-     *
-     * @return The result of executing the statement.
-     * @throws IllegalStateException if the transaction has been committed or aborted already.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    Result execute(String statement);
-
-    /**
-     * Execute the statement using the specified parameters against QLDB and retrieve the result.
-     *
-     * @param statement
-     *              The PartiQL statement to be executed against QLDB.
-     * @param parameters
-     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
-     *
-     * @return The result of executing the statement.
-     * @throws IllegalStateException if the transaction has been committed or aborted already.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    Result execute(String statement, List<IonValue> parameters);
 
     /**
      * Get the ID of the current transaction.

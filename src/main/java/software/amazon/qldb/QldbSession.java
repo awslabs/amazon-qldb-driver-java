@@ -10,13 +10,12 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.NotThreadSafe;
 import com.amazonaws.services.qldbsession.model.OccConflictException;
-import software.amazon.qldb.exceptions.AbortException;
-
 import java.util.List;
 
 /**
@@ -34,9 +33,10 @@ import java.util.List;
  * <p>There are three methods of execution, ranging from simple to complex; the first two are recommended for inbuilt
  * error handling:
  * <ul>
- * <li>{@link #execute(String)} and {@link #execute(String, List)} allow for a single statement to be executed within a
- *    transaction where the transaction is implicitly created and committed, and any recoverable errors are
- *    transparently handled.
+ * <li>{@link #execute(String, RetryIndicator, List)} and {@link #execute(String, RetryIndicator, IonValue...)} allow
+ *      for a single statement to be executed within a transaction where the transaction is implicitly created and
+ *      committed, and any recoverable errors are transparently handled. Each parameter besides the statement string
+ *      have overloaded method variants where they are not necessary.</li>
  * <li>{@link #execute(Executor, RetryIndicator)} and {@link #execute(ExecutorNoReturn, RetryIndicator)} allow for
  *    more complex execution sequences where more than one execution can occur, as well as other method calls. The
  *    transaction is implicitly created and committed, and any recoverable errors are transparently handled.</li>
@@ -50,121 +50,13 @@ import java.util.List;
  * </p>
  */
 @NotThreadSafe
-public interface QldbSession extends AutoCloseable {
+public interface QldbSession extends AutoCloseable, RetriableExecutable {
 
     /**
      * Close the session, and clean up any resources. No-op if already closed.
      */
     @Override
     void close();
-
-    /**
-     * Execute the statement against QLDB and retrieve the result.
-     *
-     * @param statement
-     *              The PartiQL statement to be executed against QLDB.
-     *
-     * @return The result of executing the statement.
-     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
-     *                               does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    Result execute(String statement);
-
-    /**
-     * Execute the statement using the specified parameters against QLDB and retrieve the result.
-     *
-     * @param statement
-     *              The PartiQL statement to be executed against QLDB.
-     * @param parameters
-     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
-     *
-     * @return The result of executing the statement.
-     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
-     *                               does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    Result execute(String statement, List<IonValue> parameters);
-
-    /**
-     * Execute the Executor lambda against QLDB within a transaction where no result is expected.
-     *
-     * @param executor
-     *              A lambda with no return value representing the block of code to be executed within the transaction.
-     *              This cannot have any side effects as it may be invoked multiple times.
-     *
-     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
-     *                               does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    void execute(ExecutorNoReturn executor);
-
-    /**
-     * Execute the Executor lambda against QLDB within a transaction where no result is expected.
-     *
-     * @param executor
-     *              A lambda with no return value representing the block of code to be executed within the transaction.
-     *              This cannot have any side effects as it may be invoked multiple times.
-     * @param retryIndicator
-     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
-     *              error. Can be null if not applicable.
-     *
-     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
-     *                               does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    void execute(ExecutorNoReturn executor, RetryIndicator retryIndicator);
-
-    /**
-     * Execute the Executor lambda against QLDB and retrieve the result within a transaction.
-     *
-     * @param executor
-     *              A lambda representing the block of code to be executed within the transaction. This cannot have any
-     *              side effects as it may be invoked multiple times, and the result cannot be trusted until the
-     *              transaction is committed.
-     *
-     * @return The return value of executing the executor. Note that if you directly return a {@link Result}, this will
-     *         be automatically buffered in memory before the implicit commit to allow reading, as the commit will close
-     *         any open results. Any other {@link Result} instances created within the executor block will be
-     *         invalidated, including if the return value is an object which nests said {@link Result} instances within
-     *         it.
-     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
-     *                               does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    <T extends Object> T execute(Executor<T> executor);
-
-    /**
-     * Execute the Executor lambda against QLDB and retrieve the result within a transaction.
-     *
-     * @param executor
-     *              A lambda representing the block of code to be executed within the transaction. This cannot have any
-     *              side effects as it may be invoked multiple times, and the result cannot be trusted until the
-     *              transaction is committed.
-     * @param retryIndicator
-     *              A lambda that which is invoked when the Executor lambda is about to be retried due to a retriable
-     *              error. Can be null if not applicable.
-     *
-     * @return The return value of executing the executor. Note that if you directly return a {@link Result}, this will
-     *         be automatically buffered in memory before the implicit commit to allow reading, as the commit will close
-     *         any open results. Any other {@link Result} instances created within the executor block will be
-     *         invalidated, including if the return value is an object which nests said {@link Result} instances within
-     *         it.
-     * @throws AbortException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit digest
-     *                               does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    <T extends Object> T execute(Executor<T> executor, RetryIndicator retryIndicator);
 
     /**
      * Retrieve the name of the ledger for this session.

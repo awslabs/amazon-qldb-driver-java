@@ -17,7 +17,6 @@ import com.amazonaws.ResponseMetadata;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
 import com.amazonaws.services.qldbsession.model.SendCommandRequest;
 import com.amazonaws.services.qldbsession.model.SendCommandResult;
-
 import java.util.ArrayDeque;
 import java.util.Queue;
 

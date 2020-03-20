@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
@@ -37,16 +38,15 @@ import com.amazonaws.services.qldbsession.model.StartSessionRequest;
 import com.amazonaws.services.qldbsession.model.StartTransactionRequest;
 import com.amazonaws.services.qldbsession.model.StartTransactionResult;
 import com.amazonaws.services.qldbsession.model.ValueHolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbClientException;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.QldbClientException;
 
 /**
  * Session object representing a communication channel with QLDB.

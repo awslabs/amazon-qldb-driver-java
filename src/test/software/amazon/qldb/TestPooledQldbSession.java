@@ -12,7 +12,9 @@
  */
 package software.amazon.qldb;
 
+import com.amazon.ion.IonValue;
 import com.amazonaws.services.qldbsession.model.InvalidSessionException;
+import java.util.Collections;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -22,8 +24,6 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import java.util.Collections;
 
 public class TestPooledQldbSession {
     @Mock
@@ -71,15 +71,39 @@ public class TestPooledQldbSession {
     }
 
     @Test
-    public void testExecute() {
+    public void testExecuteWithStatement() {
         session.execute("query");
         Mockito.verify(mockSession).execute("query");
     }
 
     @Test
-    public void testExecuteWithParameters() {
+    public void TestExecuteWithStatementAndRetry() {
+        session.execute("query", (RetryIndicator) null);
+        Mockito.verify(mockSession).execute("query", (RetryIndicator) null);
+    }
+
+    @Test
+    public void testExecuteWithListParameters() {
         session.execute("query", Collections.emptyList());
         Mockito.verify(mockSession).execute("query", Collections.emptyList());
+    }
+
+    @Test
+    public void TestExecuteWithStatementAndListParametersAndRetry() {
+        session.execute("query", null, Collections.emptyList());
+        Mockito.verify(mockSession).execute("query", null, Collections.emptyList());
+    }
+
+    @Test
+    public void testExecuteWithArgParameters() {
+        session.execute("query", new IonValue[0]);
+        Mockito.verify(mockSession).execute("query", new IonValue[0]);
+    }
+
+    @Test
+    public void TestExecuteWithStatementAndArgParametersAndRetry() {
+        session.execute("query", null, new IonValue[0]);
+        Mockito.verify(mockSession).execute("query", null, new IonValue[0]);
     }
 
     @Test
