@@ -36,20 +36,6 @@ format offering interchangeable binary and text representations. For more inform
 1. **Using PartiQL** &mdash; Amazon QLDB uses PartiQL to send request to the ledger database. You can get started with 
 the [PartiQL Tutorial](https://PartiQL.org/tutorial.html). Also read the [PartiQL Reference](https://docs.aws.amazon.com/en_pv/qldb/latest/developerguide/ql-reference.html) 
 from the Amazon QLDB Developer Guide. 
-## Release Notes
-
-### Release 1.1.0
-New features: 
-- Add the execute method to the PoolQldbDriver.
-- Use varargs on the execute methods to pass ion parameters.
-
-### Release 1.0.2
-- Bump version of the AWS SDK to 1.11.649
-- Fix an issue that will make the driver throw an `InvalidSessionException` when executing a transaction. In the initial release of the driver, if a session becomes invalid while using the `PooledQldbSession`'s `execute` convenience methods, then the transaction will fail completely for the caller, as the `InvalidSessionException` is re-thrown. To prevent the caller from needing to write additional retry logic, the `execute` methods will now transparently replace an invalid session with a new one and retry the transaction but still be limited to the number of retries configured.
-
-### Release 1.0.1
-- Version 1.0.1 of the Amazon QLDB Driver for Java.
-
 
 ## License
 
