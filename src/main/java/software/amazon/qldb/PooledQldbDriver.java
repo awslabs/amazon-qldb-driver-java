@@ -17,7 +17,6 @@ import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazonaws.annotation.ThreadSafe;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
