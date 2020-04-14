@@ -15,7 +15,6 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-
 import java.util.concurrent.ExecutorService;
 
 /**
