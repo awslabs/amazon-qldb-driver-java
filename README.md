@@ -27,7 +27,7 @@ is to read [Getting Started with the Amazon QLDB Driver](https://docs.aws.amazon
 
 ## See also
 
-1. **Driver best practices** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon.com/qldb/latest/developerguide/driver.java.best-practices.html) 
+1. **Driver best practices** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon.com/qldb/latest/developerguide/driver.best-practices.html) 
 in the QLDB documentation.
 1. **Exception handling when using QLDB Drivers** &mdash; Refer the section [Common Errors while using the Amazon QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) 
 which describes runtime exceptions that can be thrown by the Amazon QLDB Driver when calling the qldb-session APIs.
