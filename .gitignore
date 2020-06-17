@@ -1,28 +1,9 @@
-
-Go To File
-# Compiled class file
-*.class
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# IDE configurations
-*.iml
-.vscode/
-
-# Build
-target/
-bin/
-
-# Generated Files
-.classpath
-.factorypath
 .project
-.settings/
-
+.settings
+*.log
+build
+target
+.classpath
+.idea
+*.iml
+out

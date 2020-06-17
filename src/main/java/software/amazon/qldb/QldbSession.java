@@ -13,82 +13,171 @@
 
 package software.amazon.qldb;
 
-import com.amazon.ion.IonValue;
-import com.amazonaws.annotation.NotThreadSafe;
-import com.amazonaws.services.qldbsession.model.OccConflictException;
-import java.util.List;
+import com.amazon.ion.IonSystem;
+import java.net.SocketTimeoutException;
+import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.http.HttpStatus;
+import org.apache.http.NoHttpResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.annotations.NotThreadSafe;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.services.qldbsession.model.BadRequestException;
+import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
+import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
+import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
+import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
+import software.amazon.awssdk.utils.Validate;
+import software.amazon.qldb.exceptions.TransactionAbortedException;
+import software.amazon.qldb.exceptions.TransactionAlreadyOpenException;
 
 /**
- * <p>The top-level interface for a QldbSession object for interacting with QLDB. A QldbSession is linked to the
- * specified ledger in the parent driver of the instance of the QldbSession. In any given QldbSession, only one
- * transaction can be active at a time. This object can have only one underlying session to QLDB, and therefore the
- * lifespan of a QldbSession is tied to the underlying session, which is not indefinite, and on expiry this QldbSession
- * will become invalid, and a new QldbSession needs to be created from the parent driver in order to continue usage.</p>
+ * Object responsible for executing and maintaining the lifecycle of the transaction
+ * while the {@link Executor} lambda is being executed.
  *
- * <p>When a QldbSession is no longer needed, {@link #close()} should be invoked in order to clean up any resources.</p>
+ * If there is an error while starting a transaction during the execution of the {@link Executor}
+ * lambda, then the lambda will be retried.
  *
- * <p>See {@link PooledQldbDriver} for an example of session lifecycle management, allowing the re-use of sessions when
- * possible. There should only be one thread interacting with a session at any given time.</p>
- *
- * <p>There are three methods of execution, ranging from simple to complex; the first two are recommended for inbuilt
- * error handling:
- * <ul>
- * <li>{@link #execute(String, RetryIndicator, List)} and {@link #execute(String, RetryIndicator, IonValue...)} allow
- *      for a single statement to be executed within a transaction where the transaction is implicitly created and
- *      committed, and any recoverable errors are transparently handled. Each parameter besides the statement string
- *      have overloaded method variants where they are not necessary.</li>
- * <li>{@link #execute(Executor, RetryIndicator)} and {@link #execute(ExecutorNoReturn, RetryIndicator)} allow for
- *    more complex execution sequences where more than one execution can occur, as well as other method calls. The
- *    transaction is implicitly created and committed, and any recoverable errors are transparently handled.</li>
- *    {@link #execute(Executor)} and {@link #execute(ExecutorNoReturn)} are also available, providing the same
- *    functionality as the former two functions, but without a lambda function to be invoked upon a retryable
- *    error.</li>
- * <li>{@link #startTransaction()} allows for full control over when the transaction is committed and leaves the
- *    responsibility of OCC conflict handling up to the user. Transactions methods cannot be automatically retried, as
- *    the state of the transaction is ambiguous in the case of an unexpected error.</li>
- * </ul>
- * </p>
  */
 @NotThreadSafe
-public interface QldbSession extends AutoCloseable, RetriableExecutable {
+class QldbSession {
+    private static final Logger logger = LoggerFactory.getLogger(QldbSession.class);
+    private final int readAhead;
+    private final ExecutorService executorService;
+
+
+    private final RetryPolicy retryPolicy;
+    private Session session;
+    private final AtomicBoolean isClosed = new AtomicBoolean(true);
+    private final IonSystem ionSystem;
+
+    QldbSession(Session session, RetryPolicy retryPolicy, int readAhead,
+                IonSystem ionSystem, ExecutorService executorService) {
+        this.retryPolicy = retryPolicy;
+        this.ionSystem = ionSystem;
+        this.session = session;
+        this.isClosed.set(false);
+        this.readAhead = readAhead;
+        this.executorService = executorService;
+    }
 
     /**
-     * Close the session, and clean up any resources. No-op if already closed.
+     * Closes the object so it can't be reused to execute transactions.
      */
-    @Override
-    void close();
+    void close() {
+        if (!isClosed.getAndSet(true)) {
+            session.close();
+        }
+    }
 
-    /**
-     * Retrieve the name of the ledger for this session.
-     *
-     * @return The ledger name for this session.
-     */
-    String getLedgerName();
+    boolean isClosed() {
+        return isClosed.get();
+    }
 
-    /**
-     * Retrieve the session token of this session.
-     *
-     * @return The session token for this session.
-     */
-    String getSessionToken();
+    <T> T execute(Executor<T> executor, RetryPolicy retryPolicy, ExecutionContext executionContext) {
+        Validate.paramNotNull(executor, "executor");
+        while (true) {
+            executionContext.setLastException(null);
+            Transaction transaction = null;
 
-    /**
-     * Retrieve the table names that are available within the ledger.
-     *
-     * @return The Iterable over the table names in the ledger.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already, or if the transaction's commit
-     *                               digest does not match the response from QLDB.
-     * @throws OccConflictException if the number of retries has exceeded the limit and an OCC conflict occurs.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    Iterable<String> getTableNames();
+            try {
 
-    /**
-     * Create a transaction object which allows for granular control over when a transaction is aborted or committed.
-     *
-     * @return The newly created transaction object.
-     * @throws IllegalStateException if this QldbSessionImpl has been closed already.
-     * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB.
-     */
-    Transaction startTransaction();
+                transaction = startTransaction();
+                T returnedValue = executor.execute(new TransactionExecutor(transaction));
+                if (returnedValue instanceof StreamResult) {
+                    // If someone accidentally returned a StreamResult object which would become invalidated by the
+                    // commit, automatically buffer it to allow them to use the result anyway.
+                    returnedValue = (T) new BufferedResult((Result) returnedValue);
+                }
+                transaction.commit();
+                return returnedValue;
+            } catch (TransactionAlreadyOpenException taoe) {
+                executionContext.setLastException(taoe);
+                if (executionContext.retryAttempts() >= retryPolicy.maxRetries()) {
+                    throw (BadRequestException) taoe.getCause();
+                }
+                logger.info("Retrying the transaction. {} ", taoe.getMessage());
+            } catch (TransactionAbortedException ae) {
+                noThrowAbort(transaction);
+                throw ae;
+            } catch (InvalidSessionException ise) {
+                if (transaction != null) {
+                    logger.warn("Transaction {} expired while executing. Cause {} ", transaction.getTransactionId(),
+                                ise.getMessage());
+                }
+                isClosed.set(true);
+                throw ise;
+            } catch (OccConflictException occe) {
+                executionContext.setLastException(occe);
+                if (executionContext.retryAttempts() >= retryPolicy.maxRetries()) {
+                    throw occe;
+                }
+                logger.info("Retrying the transaction. {} ", occe.getMessage());
+            } catch (QldbSessionException qse) {
+                executionContext.setLastException(qse);
+                noThrowAbort(transaction);
+                if ((executionContext.retryAttempts() >= retryPolicy.maxRetries())
+                    || ((qse.statusCode() != HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                        && (qse.statusCode() != HttpStatus.SC_SERVICE_UNAVAILABLE))) {
+                    throw qse;
+                }
+            } catch (AwsServiceException ase) {
+                executionContext.setLastException(ase);
+                noThrowAbort(transaction);
+
+                // Retry if it's a timeout or a no response error.
+                if ((executionContext.retryAttempts() >= retryPolicy.maxRetries())
+                    || (!(ase.getCause() instanceof NoHttpResponseException
+                          || ase.getCause() instanceof SocketTimeoutException))) {
+                    throw ase;
+                }
+            }
+            executionContext.increaseAttempt();
+
+            // There was a non-fatal error that occurred, so sleep for a bit before retry.
+            retrySleep(executionContext, transaction, retryPolicy);
+        }
+    }
+
+    String getSessionId() {
+        return this.session.getId();
+    }
+
+    private Transaction startTransaction() {
+        try {
+            final StartTransactionResult startTransaction = session.sendStartTransaction();
+            return new Transaction(session, startTransaction.transactionId(), readAhead, ionSystem, executorService);
+        } catch (BadRequestException e) {
+            throw new TransactionAlreadyOpenException(e);
+        }
+    }
+
+    private void noThrowAbort(Transaction transaction) {
+        try {
+            if (null != transaction) {
+                transaction.abort();
+            }
+        } catch (AwsServiceException ace) {
+            logger.warn("Ignored error aborting transaction during execution.", ace);
+        }
+    }
+
+    private void retrySleep(ExecutionContext executionContext, Transaction transaction, RetryPolicy retryPolicy) {
+        try {
+            final String transactionId = transaction != null ? transaction.getTransactionId() : null;
+            final RetryPolicyContext retryPolicyContext = new RetryPolicyContext(executionContext.lastException(),
+                                                                                 executionContext.retryAttempts(),
+                                                                                 transactionId);
+            Duration backoffDelay =
+                retryPolicy.backoffStrategy().calculateDelay(retryPolicyContext);
+
+            TimeUnit.MILLISECONDS.sleep(backoffDelay.toMillis());
+        } catch (InterruptedException e) {
+            // Reset the interruption flag.
+            Thread.currentThread().interrupt();
+        }
+    }
 }

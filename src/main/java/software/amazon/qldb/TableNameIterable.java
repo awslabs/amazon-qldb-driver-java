@@ -17,10 +17,10 @@ import com.amazon.ion.IonReader;
 import com.amazon.ion.IonType;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonReaderBuilder;
-import com.amazonaws.annotation.NotThreadSafe;
 import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.qldb.exceptions.Errors;
 
 /**

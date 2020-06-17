@@ -12,26 +12,28 @@
  */
 package software.amazon.qldb;
 
-import com.amazonaws.services.qldbsession.model.Page;
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.Mockito;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-public class TestResultHolder {
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import software.amazon.awssdk.services.qldbsession.model.Page;
+
+public class ResultHolderTest {
     @Test
     public void testWithResultOnly() {
         final Page result = Mockito.mock(Page.class);
         final ResultHolder<String> holder = new ResultHolder<>(result);
-        Assert.assertNull(holder.getAssociatedValue());
-        Assert.assertEquals(result, holder.getResult());
+        assertNull(holder.getAssociatedValue());
+        assertEquals(result, holder.getResult());
     }
 
     @Test
     public void testWithValueOnly() {
         final String val = "myValue";
         final ResultHolder<String> holder = new ResultHolder<>(val);
-        Assert.assertEquals(val, holder.getAssociatedValue());
-        Assert.assertNull(holder.getResult());
+        assertEquals(val, holder.getAssociatedValue());
+        assertNull(holder.getResult());
     }
 
     @Test
@@ -39,8 +41,8 @@ public class TestResultHolder {
         final Page result = Mockito.mock(Page.class);
         final String val = "myValue";
         final ResultHolder<String> holder = new ResultHolder<>(result, val);
-        Assert.assertEquals(val, holder.getAssociatedValue());
-        Assert.assertEquals(result, holder.getResult());
+        assertEquals(val, holder.getAssociatedValue());
+        assertEquals(result, holder.getResult());
     }
 
     @Test
@@ -48,6 +50,6 @@ public class TestResultHolder {
         final Page result = Mockito.mock(Page.class);
         final String val = "myValue";
         final ResultHolder<String> holder = new ResultHolder<>(result, val);
-        Assert.assertEquals("ResultHolder(Result: " + result + ", AssociatedValue: " + val + ")", holder.toString());
+        assertEquals("ResultHolder(Result: " + result + ", AssociatedValue: " + val + ")", holder.toString());
     }
 }

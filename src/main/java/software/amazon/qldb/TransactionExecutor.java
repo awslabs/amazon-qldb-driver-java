@@ -15,7 +15,7 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import java.util.List;
-import software.amazon.qldb.exceptions.AbortException;
+import software.amazon.qldb.exceptions.TransactionAbortedException;
 
 /**
  * Transaction object used within lambda executions to provide a reduced view that allows only the operations that are
@@ -38,7 +38,7 @@ public class TransactionExecutor implements Executable {
      * Abort the transaction and roll back any changes.
      */
     public void abort() {
-        throw new AbortException();
+        throw new TransactionAbortedException();
     }
 
     /**
@@ -48,7 +48,7 @@ public class TransactionExecutor implements Executable {
      *              The PartiQL statement to be executed against QLDB.
      *
      * @return The result of executing the statement.
-     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.services.qldbsession.model.QldbSessionException if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement) {
@@ -64,7 +64,7 @@ public class TransactionExecutor implements Executable {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.services.qldbsession.model.QldbSessionException if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement, List<IonValue> parameters) {
@@ -80,7 +80,7 @@ public class TransactionExecutor implements Executable {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws com.amazonaws.AmazonClientException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.services.qldbsession.model.QldbSessionException if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement, IonValue... parameters) {

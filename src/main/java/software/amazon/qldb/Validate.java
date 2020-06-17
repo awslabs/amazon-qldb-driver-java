@@ -24,25 +24,4 @@ class Validate {
             throw new IllegalArgumentException(String.format("%s must be 2 or greater. Given value: %d.", fieldName, num));
         }
     }
-
-    static void assertIsNotNegative(int num, String fieldName) {
-        if (num < 0) {
-            throw new IllegalArgumentException(String.format("%s must be positive. Given value: %d.", fieldName, num));
-        }
-    }
-
-    static void assertIsTrue(boolean condition, String fieldName) {
-        if (!condition) {
-            throw new IllegalArgumentException(String.format("%s must be true.", fieldName));
-        }
-    }
-
-    static void assertPoolLimit(int configurationLimit, int poolLimit, String fieldName) {
-        assertIsNotNegative(poolLimit, fieldName);
-        if (poolLimit > configurationLimit) {
-            throw new IllegalArgumentException(
-                String.format("%s must not exceed the amount set in the client builder's configuration of %d. Given value: %d.",
-                        fieldName, configurationLimit, poolLimit));
-        }
-    }
 }

@@ -20,10 +20,14 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
+ * <p>
  * Implementation of a result which buffers all values in memory, rather than stream them from QLDB during retrieval.
+ * </p>
  *
+ * <p>
  * This implementation should only be used when the result is to be returned after the parent transaction is to be
  * committed.
+ * </p>
  */
 class BufferedResult implements Result {
     private final List<IonValue> bufferedValues;
@@ -32,7 +36,7 @@ class BufferedResult implements Result {
      * Constructor for the result which buffers into the memory the supplied result before closing it.
      *
      * @param result
-     *              The result which is to be buffered into memory and closed.
+     *              The result with the Ion values.
      */
     BufferedResult(Result result) {
         final List<IonValue> tempValues = new ArrayList<>();
