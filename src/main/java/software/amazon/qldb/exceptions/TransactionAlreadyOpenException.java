@@ -13,8 +13,21 @@
 
 package software.amazon.qldb.exceptions;
 
+import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
+import software.amazon.qldb.QldbDriver;
+
 /**
- * Exception type representing the abort of a transaction within a lambda execution block. Signals that the lambda
- * should cease to execute and the current transaction should be aborted.
+ * Exception thrown when an attempt is made to start another transaction
+ * while the previous transaction was still open.
+ *
+ * <p>When this exception occurs the driver will retry the lambda function passed to
+ * any of the {@link QldbDriver}'s execute methods.
+ * </p>
+ *
+ * <p><b>Note</b>: this enum is for internal use only.</p>
  */
-public class AbortException extends RuntimeException {}
+public class TransactionAlreadyOpenException extends QldbDriverException {
+    public TransactionAlreadyOpenException(QldbSessionException cause) {
+        super(cause);
+    }
+}

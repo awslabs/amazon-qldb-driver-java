@@ -13,7 +13,7 @@
 
 package software.amazon.qldb;
 
-import com.amazonaws.services.qldbsession.model.Page;
+import software.amazon.awssdk.services.qldbsession.model.Page;
 
 /**
  * Holder object for facilitating passing of results or exceptions from the asynchronous reader thread to the

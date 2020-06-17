@@ -16,21 +16,26 @@ package software.amazon.qldb.exceptions;
 import java.util.ResourceBundle;
 
 /**
- * Enum identifying the possible errors within the QLDB session, allowing for retrieval of a localized error message.
+ * Enum identifying the possible error types when executing a transaction.
+ *
+ * <p><b>Note</b>: this enum is for internal use only.</p>
  */
 public enum Errors {
-    DRIVER_CLOSED,
-    GET_SESSION_INTERRUPTED,
-    INCORRECT_TYPE,
+    ABORTED_EXCEPTION,         // txn aborted
+    GET_SESSION_INTERRUPTED, // illegal state
+    DRIVER_CLOSED,           // illegal state
     QUEUE_CAPACITY,
-    RESULT_PARENT_INACTIVE,
-    RETRIEVE_INTERRUPTED,
-    SERIALIZING_PARAMS,
-    SESSION_CLOSED,
-    SESSION_POOL_EMPTY,
-    STREAM_RESULT_ITERATED,
-    TXN_CLOSED,
-    TXN_DIGEST_MISMATCH;
+    RETRIEVE_INTERRUPTED,   // illegal state
+    RESULT_PARENT_INACTIVE, // illegal state
+    STREAM_RESULT_ITERATED, // illegal state
+
+    NO_SESSION_AVAILABLE,   // driver problem
+    TXN_DIGEST_MISMATCH,    // driver problem
+    INCORRECT_TYPE,         // driver problem
+    SERIALIZING_PARAMS,     // driver problem
+
+    GENERIC_EXCEPTION;
+
 
     private static final ResourceBundle MESSAGES = ResourceBundle.getBundle("errors");
 

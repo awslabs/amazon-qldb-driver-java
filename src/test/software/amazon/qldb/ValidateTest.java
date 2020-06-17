@@ -10,21 +10,20 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
-
 package software.amazon.qldb;
 
-/**
- * Represents a function that is invoked when a recoverable error, including OCC conflicts, occurs and the retry limit
- * has not yet been exceeded, indicating that a new transaction is about to be created and the Executor lambda
- * re-invoked. The retry attempt is passed in as a parameter.
- */
-@FunctionalInterface
-public interface RetryIndicator {
-    /**
-     * Executes the operation when a retry is about to occur.
-     *
-     * @param retryNumber
-     *              The number of times this has previously been invoked.
-     */
-    void onRetry(int retryNumber);
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import org.junit.jupiter.api.Test;
+
+public class ValidateTest {
+    @Test
+    public void testAssertIsAtLeastTwoIsValid() {
+        Validate.assertIsAtLeastTwo(2, "poolLimit");
+    }
+
+    @Test
+    public void testAssertIsAtLeastTwoIsNotValid() {
+        assertThrows(IllegalArgumentException.class, () -> Validate.assertIsAtLeastTwo(1, "poolLimit"));
+    }
 }

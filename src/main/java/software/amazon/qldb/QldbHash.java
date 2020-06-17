@@ -27,7 +27,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A QLDB hash is either a 256 bit number or a special empty hash.
+ * <p>A QLDB hash is either a 256 bit number or a special empty hash. See
+ * <a href='https://docs.aws.amazon.com/qldb/latest/developerguide/verification.html'>QLDB Verification</a></p>
+ *
+ * <p>
+ *     The QLDB hash is used to create the commit hash of the transaction.
+ *     The QLDB hash information is generated using the  transaction id with the statements and their
+ *     parameters used in the transaction.
+ * </p>
  */
 public class QldbHash {
     private static final Logger logger = LoggerFactory.getLogger(QldbHash.class);
@@ -54,7 +61,12 @@ public class QldbHash {
     }
 
     /**
-     * The QldbHash of an IonValue is just the IonHash of that value.
+     * The QLDB Hash of an IonValue is just the IonHash of that value.
+     * @param value
+     *          The Ion value to hash.
+     * @param ionSystem
+     *          The Ion system that is used to read the Ion value.
+     * @return An instance of the `QldbHash` with the hashed Ion values.
      */
     public static QldbHash toQldbHash(IonValue value, IonSystem ionSystem) {
         IonReader reader = ionSystem.newReader(value);
@@ -66,6 +78,12 @@ public class QldbHash {
         return new QldbHash(hashReader.digest(), ionSystem);
     }
 
+    /**
+     * The QLDB dot operator joins two hashes and generates a new hash.
+     * @param that
+     *          The Ion value to hash.
+     * @return An instance of the `QldbHash` with the hashed ion values.
+     */
     public QldbHash dot(QldbHash that) {
         byte[] concatenated = joinHashesPairwise(this.getQldbHash(), that.getQldbHash());
         MessageDigest messageDigest = newMessageDigest();
@@ -84,6 +102,11 @@ public class QldbHash {
         return qldbHash.length;
     }
 
+    /**
+     * Retrieves the `QldbHash` bytes.
+     * @return The `QldbHash` in bytes.
+     */
+    
     public byte[] getQldbHash() {
         return this.qldbHash;
     }

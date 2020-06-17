@@ -12,25 +12,25 @@
  */
 package software.amazon.qldb;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
-import com.amazonaws.AmazonClientException;
 import java.util.Collections;
 import java.util.List;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import software.amazon.qldb.exceptions.AbortException;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.qldb.exceptions.TransactionAbortedException;
 
-public class TestTransactionExecutor {
+public class TransactionExecutorTest {
     private static final IonSystem system = IonSystemBuilder.standard().build();
 
     private TransactionExecutor txnExec;
@@ -41,10 +41,7 @@ public class TestTransactionExecutor {
     @Mock
     private Transaction mockTxn;
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
 
@@ -56,22 +53,20 @@ public class TestTransactionExecutor {
 
     @Test
     public void testAbortThrows() {
-        Mockito.doThrow(new AmazonClientException("")).when(mockTxn).abort();
+        Mockito.doThrow(SdkServiceException.builder().message("").build()).when(mockTxn).abort();
 
-        thrown.expect(AbortException.class);
-
-        txnExec.abort();
+        assertThrows(TransactionAbortedException.class, () -> txnExec.abort());
     }
 
     @Test
     public void testExecuteNoParams() {
         final String query = "my query";
         final Result result = txnExec.execute(query);
-        Assert.assertEquals(mockResult, result);
+        assertEquals(mockResult, result);
 
         final ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         Mockito.verify(mockTxn, Mockito.times(1)).execute(queryCaptor.capture());
-        Assert.assertEquals(query, queryCaptor.getValue());
+        assertEquals(query, queryCaptor.getValue());
     }
 
     @Test
@@ -79,13 +74,13 @@ public class TestTransactionExecutor {
         final String query = "my query";
         final List<IonValue> params = Collections.emptyList();
         final Result result = txnExec.execute(query, params);
-        Assert.assertEquals(mockResult, result);
+        assertEquals(mockResult, result);
 
         final ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         final ArgumentCaptor<List<IonValue>> listCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(mockTxn, Mockito.times(1)).execute(queryCaptor.capture(), listCaptor.capture());
-        Assert.assertEquals(query, queryCaptor.getValue());
-        Assert.assertEquals(params, listCaptor.getValue());
+        assertEquals(query, queryCaptor.getValue());
+        assertEquals(params, listCaptor.getValue());
     }
 
     @Test
@@ -93,21 +88,21 @@ public class TestTransactionExecutor {
         final String query = "my query";
         final List<IonValue> params = Collections.singletonList(system.singleValue("myValue"));
         final Result result = txnExec.execute(query, params);
-        Assert.assertEquals(mockResult, result);
+        assertEquals(mockResult, result);
 
         final ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         final ArgumentCaptor<List<IonValue>> listCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(mockTxn, Mockito.times(1)).execute(queryCaptor.capture(), listCaptor.capture());
-        Assert.assertEquals(query, queryCaptor.getValue());
-        Assert.assertEquals(params, listCaptor.getValue());
-        Assert.assertEquals(params.size(), listCaptor.getValue().size());
-        Assert.assertEquals(params.get(0), listCaptor.getValue().get(0));
+        assertEquals(query, queryCaptor.getValue());
+        assertEquals(params, listCaptor.getValue());
+        assertEquals(params.size(), listCaptor.getValue().size());
+        assertEquals(params.get(0), listCaptor.getValue().get(0));
     }
 
     @Test
     public void testGetTxnId() {
         final String value = txnExec.getTransactionId();
-        Assert.assertEquals("txnId", value);
+        assertEquals("txnId", value);
         Mockito.verify(mockTxn, Mockito.times(1)).getTransactionId();
     }
 }

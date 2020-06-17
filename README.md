@@ -8,6 +8,7 @@ control over transactions to group multiple executions within a transaction.
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/software.amazon.qldb/amazon-qldb-driver-java/badge.svg)](https://maven-badges.herokuapp.com/maven-central/software.amazon.qldb/amazon-qldb-driver-java)
 [![Javadoc](https://javadoc.io/badge2/software.amazon.qldb/amazon-qldb-driver-java/javadoc.svg)](https://javadoc.io/doc/software.amazon.qldb/amazon-qldb-driver-java)
 
+Version 1.x is still supported.
 
 ## Getting Started
 
@@ -15,9 +16,8 @@ control over transactions to group multiple executions within a transaction.
 account and retrieving your AWS credentials, see [AWS Account and Credentials][docs-signup] in the AWS SDK for Java 
 Developer Guide.
 1. **Minimum requirements** &mdash; To use the Amazon QLDB Driver for Java, you'll need **Java 1.8+**. For more 
-information about Amazon QLDB Driver for Java requirements, see [Java and Amazon QLDB](https://docs.aws.amazon.com/en_pv/qldb/latest/developerguide/getting-started.java.html) in the Amazon QLDB Developer Guide.
-1. **Install the QLDB driver** &mdash; The driver binaries are in Maven Central, for more information please checkout 
-the [Quickstart](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html#getting-started.java.quickstart) section of the Amazon Qldb documentaiton for the java Driver.
+information about Amazon QLDB Driver for Java requirements, see [Amazon QLDB Driver for Java](https://docs.aws.amazon.com/en_pv/qldb/latest/developerguide/getting-started.java.html) in the Amazon QLDB Developer Guide.
+1. **Install the QLDB driver** &mdash; The driver binaries are in Maven Central. For more information, see [Amazon QLDB documentation for the Java driver](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html#getting-started.java.quickstart) section of the Amazon Qldb documentaiton for the java Driver.
 1. **Using the Amazon QLDB Driver for Java** &mdash; The best way to get familiar with the Amazon QLDB Driver for Java 
 is to read [Getting Started with the Amazon QLDB Driver](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started-driver.html) in the [Amazon QLDB Developer Guide](https://docs.aws.amazon.com/qldb/latest/developerguide/what-is.html).
 
@@ -27,13 +27,16 @@ is to read [Getting Started with the Amazon QLDB Driver](https://docs.aws.amazon
 
 ## See also
 
-1. **Driver best practices** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon.com/qldb/latest/developerguide/driver.best-practices.html) 
+1. **Driver Recommendations** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon
+.com/qldb/latest/developerguide/driver.best-practices.html) 
 in the QLDB documentation.
-1. **Exception handling when using QLDB Drivers** &mdash; Refer the section [Common Errors while using the Amazon QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) 
+1. **Exception handling when using QLDB Drivers** &mdash; Refer to the section [Common Errors while using the Amazon 
+QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) 
 which describes runtime exceptions that can be thrown by the Amazon QLDB Driver when calling the qldb-session APIs.
 1. **Using Amazon Ion Java** &mdash; Amazon Ion is a richly-typed, self-describing, hierarchical data serialization 
-format offering interchangeable binary and text representations. For more information read the [ion docs](http://amzn.GitHub.io/ion-docs/) for [Amazon Ion Java](https://github.com/amzn/ion-java)
-1. **Using PartiQL** &mdash; Amazon QLDB uses PartiQL to send request to the ledger database. You can get started with 
+format offering interchangeable binary and text representations. For more information read the [Ion docs](http://amzn
+.GitHub.io/ion-docs/) for [Amazon Ion Java](https://github.com/amzn/ion-java)
+1. **Using PartiQL** &mdash; Amazon QLDB uses PartiQL to send requests to the ledger database. You can get started with 
 the [PartiQL Tutorial](https://PartiQL.org/tutorial.html). Also read the [PartiQL Reference](https://docs.aws.amazon.com/en_pv/qldb/latest/developerguide/ql-reference.html) 
 from the Amazon QLDB Developer Guide. 
 
