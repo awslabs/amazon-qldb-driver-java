@@ -28,8 +28,7 @@ public interface Executable {
      *              The PartiQL statement to be executed against QLDB.
      *
      * @return The result of executing the statement.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing
-     * against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     Result execute(String statement);
 
@@ -42,7 +41,7 @@ public interface Executable {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     Result execute(String statement, List<IonValue> parameters);
 
@@ -55,7 +54,7 @@ public interface Executable {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     Result execute(String statement, IonValue... parameters);
 }

@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.qldbsession.model.CommitTransactionResult;
 import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
@@ -161,18 +162,18 @@ public class TransactionTest {
 
     @Test
     public void testCommitExceptionAbortException() {
-        final SdkServiceException ace1 = SdkServiceException.builder().message("").build();
-        final SdkServiceException ace2 = SdkServiceException.builder().message("").build();
+        final SdkClientException se1 = SdkClientException.builder().message("").build();
+        final SdkClientException se2 = SdkClientException.builder().message("").build();
 
-        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any())).thenThrow(ace1);
-        Mockito.when(mockSession.sendAbort()).thenThrow(ace2);
+        Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any())).thenThrow(se1);
+        Mockito.when(mockSession.sendAbort()).thenThrow(se2);
 
-        assertThrows(SdkServiceException.class, () -> {
+        assertThrows(SdkClientException.class, () -> {
             try {
                 txn.commit();
-            } catch (SdkServiceException ace) {
-                assertEquals(ace, ace1);
-                throw ace;
+            } catch (SdkClientException se) {
+                assertEquals(se, se1);
+                throw se;
             } finally {
                 assertTrue(txn.getIsClosed().get());
             }

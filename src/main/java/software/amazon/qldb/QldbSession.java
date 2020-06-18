@@ -14,17 +14,16 @@
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.http.HttpStatus;
-import org.apache.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.model.BadRequestException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
@@ -47,16 +46,11 @@ class QldbSession {
     private static final Logger logger = LoggerFactory.getLogger(QldbSession.class);
     private final int readAhead;
     private final ExecutorService executorService;
-
-
-    private final RetryPolicy retryPolicy;
     private Session session;
     private final AtomicBoolean isClosed = new AtomicBoolean(true);
     private final IonSystem ionSystem;
 
-    QldbSession(Session session, RetryPolicy retryPolicy, int readAhead,
-                IonSystem ionSystem, ExecutorService executorService) {
-        this.retryPolicy = retryPolicy;
+    QldbSession(Session session, int readAhead, IonSystem ionSystem, ExecutorService executorService) {
         this.ionSystem = ionSystem;
         this.session = session;
         this.isClosed.set(false);
@@ -95,11 +89,12 @@ class QldbSession {
                 transaction.commit();
                 return returnedValue;
             } catch (TransactionAlreadyOpenException taoe) {
+                noThrowAbort(transaction);
                 executionContext.setLastException(taoe);
                 if (executionContext.retryAttempts() >= retryPolicy.maxRetries()) {
                     throw (BadRequestException) taoe.getCause();
                 }
-                logger.info("Retrying the transaction. {} ", taoe.getMessage());
+                logger.debug("Retrying the transaction. {} ", taoe.getMessage());
             } catch (TransactionAbortedException ae) {
                 noThrowAbort(transaction);
                 throw ae;
@@ -124,15 +119,14 @@ class QldbSession {
                         && (qse.statusCode() != HttpStatus.SC_SERVICE_UNAVAILABLE))) {
                     throw qse;
                 }
-            } catch (AwsServiceException ase) {
-                executionContext.setLastException(ase);
+            } catch (SdkClientException sce) {
+                executionContext.setLastException(sce);
                 noThrowAbort(transaction);
 
-                // Retry if it's a timeout or a no response error.
-                if ((executionContext.retryAttempts() >= retryPolicy.maxRetries())
-                    || (!(ase.getCause() instanceof NoHttpResponseException
-                          || ase.getCause() instanceof SocketTimeoutException))) {
-                    throw ase;
+                // SdkClientException means that client couldn't reach out QLDB so
+                // transaction should be retried up to the max number of attempts.
+                if (executionContext.retryAttempts() >= retryPolicy.maxRetries()) {
+                    throw sce;
                 }
             }
             executionContext.increaseAttempt();
@@ -157,11 +151,13 @@ class QldbSession {
 
     private void noThrowAbort(Transaction transaction) {
         try {
-            if (null != transaction) {
+            if (null == transaction) {
+                session.sendAbort();
+            } else {
                 transaction.abort();
             }
-        } catch (AwsServiceException ace) {
-            logger.warn("Ignored error aborting transaction during execution.", ace);
+        } catch (SdkException se) {
+            logger.warn("Ignored error aborting transaction during execution.", se);
         }
     }
 
@@ -173,6 +169,9 @@ class QldbSession {
                                                                                  transactionId);
             Duration backoffDelay =
                 retryPolicy.backoffStrategy().calculateDelay(retryPolicyContext);
+            if (backoffDelay == null || backoffDelay.isNegative()) {
+                backoffDelay = Duration.ofMillis(0);
+            }
 
             TimeUnit.MILLISECONDS.sleep(backoffDelay.toMillis());
         } catch (InterruptedException e) {

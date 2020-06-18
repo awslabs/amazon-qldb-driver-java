@@ -26,13 +26,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
-
 
 /**
  * <p>Interface that represents an active transaction with QLDB.</p>
@@ -89,7 +88,7 @@ class Transaction {
     /**
      * Abort the transaction and roll back any changes. Any open Results created by the transaction will be closed.
      *
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void abort() {
         if (!isClosed.get()) {
@@ -104,8 +103,8 @@ class Transaction {
     void close() {
         try {
             abort();
-        } catch (AwsServiceException ace) {
-            logger.warn("Ignored error aborting transaction when closing.", ace);
+        } catch (SdkException se) {
+            logger.warn("Ignored error aborting transaction when closing.", se);
         }
     }
 
@@ -119,7 +118,7 @@ class Transaction {
      * @throws IllegalStateException if the transaction has been committed or aborted already, or if the returned commit
      *                               digest from QLDB does not match.
      * @throws OccConflictException if an OCC conflict has been detected within the transaction.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void commit() {
         try {
@@ -135,9 +134,9 @@ class Transaction {
         } catch (InvalidSessionException ise) {
             // Avoid sending abort since we know session is dead.
             throw ise;
-        } catch (AwsServiceException ace) {
+        } catch (SdkException se) {
             close();
-            throw ace;
+            throw se;
         } finally {
             internalClose();
         }
