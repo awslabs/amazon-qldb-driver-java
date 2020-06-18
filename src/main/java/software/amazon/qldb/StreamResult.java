@@ -127,7 +127,7 @@ class StreamResult implements Result {
          * Get boolean indicating if there is a next value in the iterator.
          *
          * @return Boolean indicating whether or not there is a next value.
-         * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB,
+         * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB,
          *      when trying to get the next page of results.
          */
         @Override
@@ -139,7 +139,7 @@ class StreamResult implements Result {
          * Get the next value in the iterator.
          *
          * @return The next IonValue resulting from the execution statement.
-         * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB,
+         * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB,
          *      when trying to get the next page of results.
          */
         @Override

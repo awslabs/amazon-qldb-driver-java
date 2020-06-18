@@ -15,7 +15,6 @@ package software.amazon.qldb;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -44,7 +43,8 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
-import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
@@ -184,7 +184,7 @@ public class QldbDriverImplTest {
 
     @ParameterizedTest
     @MethodSource("exceptionProvider")
-    public void testExecuteCustomPolicy(SdkServiceException exception) {
+    public void testExecuteCustomPolicy(SdkException exception) {
         RetryPolicy driverRetryPolicy = spy(RetryPolicy.maxRetries(3));
         qldbDriverImpl = QldbDriver.builder()
                                    .sessionClientBuilder(mockBuilder)
@@ -211,13 +211,13 @@ public class QldbDriverImplTest {
         verify(customRetryPolicy, times(1)).maxRetries();
     }
 
-    static Stream<SdkServiceException> exceptionProvider () {
-        return Stream.of(AwsServiceException
+    static Stream<SdkException> exceptionProvider () {
+        return Stream.of(SdkClientException
                       .builder()
                       .message("Transient issue")
                       .cause(new SocketTimeoutException())
                       .build(),
-                  OccConflictException.builder().message("Msg1").build()
+                         OccConflictException.builder().message("Msg1").build()
                   );
     }
 

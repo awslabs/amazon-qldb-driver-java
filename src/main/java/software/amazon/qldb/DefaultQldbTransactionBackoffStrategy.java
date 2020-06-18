@@ -53,7 +53,21 @@ public class DefaultQldbTransactionBackoffStrategy implements BackoffStrategy {
     DefaultQldbTransactionBackoffStrategy(final Duration baseDelay, final Duration maxBackoffTime, final Random random) {
         this.baseDelay = Validate.isNotNegative(baseDelay, "baseDelay");
         this.maxBackoffTime = Validate.isNotNegative(maxBackoffTime, "maxBackoffTime");
+
+        if (baseDelay.compareTo(maxBackoffTime) > 0) {
+            throw new IllegalArgumentException(String.format("%s cannot be greater than %s", "baseDelay", "maxBackoffTime"));
+        }
+
         this.random = random;
+    }
+
+    /**
+     * Constructor to create a Backoff Strategy but with custom baseDelay and cap backoff time.
+     * @param baseDelay The minimum amount of time to delay a retry.
+     * @param maxBackoffTime The maximum time to delay a retry.
+     */
+    public DefaultQldbTransactionBackoffStrategy(final Duration baseDelay, final Duration maxBackoffTime) {
+        this(baseDelay, maxBackoffTime, new Random());
     }
 
     /**

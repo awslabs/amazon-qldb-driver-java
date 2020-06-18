@@ -12,16 +12,19 @@
  */
 package software.amazon.qldb;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static software.amazon.qldb.MockResponses.SESSION_TOKEN;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
@@ -29,6 +32,7 @@ import com.amazon.ion.system.IonSystemBuilder;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -41,7 +45,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.qldbsession.model.AbortTransactionRequest;
 import software.amazon.awssdk.services.qldbsession.model.BadRequestException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
@@ -82,7 +89,7 @@ public class QldbSessionTest {
         client = new MockQldbSessionClient();
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
         mockSession = Session.startSession(LEDGER, client);
-        qldbSession = new QldbSession(mockSession, retryPolicy, READ_AHEAD, system, null);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
     }
 
     @Test
@@ -116,7 +123,7 @@ public class QldbSessionTest {
         assertThrows(InvalidSessionException.class, () -> {
             QldbSession qldbSession = null;
             try {
-                qldbSession = new QldbSession(mockSession, retryPolicy, READ_AHEAD, system, null);
+                qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
                 qldbSession.execute(txn -> null, null, new ExecutionContext());
             } finally {
                 assertTrue(client.isQueueEmpty());
@@ -129,6 +136,7 @@ public class QldbSessionTest {
     @DisplayName("execute - SHOULD not call the executor lambda WHEN QLDB fails to start a transaction")
     public void testStartTransactionError() {
         client.queueResponse(QldbSessionException.builder().message("an error").build());
+        client.queueResponse(MockResponses.ABORT_RESPONSE);
 
         assertThrows(QldbSessionException.class, () -> {
             // StartTransaction is called at the beginning of the execute method
@@ -223,7 +231,7 @@ public class QldbSessionTest {
     @DisplayName("execute - SHOULD retry generic server side failures WHEN QLDB executes a transaction")
     public void testExecuteExecutorLambdaWithSdkServiceExceptions() throws IOException {
         // This exception should be retried.
-        final AwsServiceException exception1 = AwsServiceException
+        final SdkClientException exception1 = SdkClientException
             .builder()
             .message("Error 1")
             .cause(new NoHttpResponseException("cause"))
@@ -231,7 +239,7 @@ public class QldbSessionTest {
         queueTxnExecError(exception1);
 
         // This exception should be retried.
-        final AwsServiceException exception2 = AwsServiceException
+        final SdkClientException exception2 = SdkClientException
             .builder()
             .message("Error 2")
             .cause(new SocketTimeoutException("cause"))
@@ -258,10 +266,10 @@ public class QldbSessionTest {
     }
 
     @Test
-    @DisplayName("execute - SHOULD retry generic server side failures up to a limit WHEN QLDB executes a transaction")
-    public void testExecuteExecutorLambdaWithSdkServiceExceptionsExceedRetry() throws IOException {
+    @DisplayName("execute - SHOULD retry generic client failures up to a limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithSdkClientExceptionExceedRetry() throws IOException {
         for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
-            final AwsServiceException exception = AwsServiceException
+            final SdkClientException exception = SdkClientException
                 .builder()
                 .message("Error")
                 .cause(new NoHttpResponseException("cause"))
@@ -269,7 +277,7 @@ public class QldbSessionTest {
             queueTxnExecError(exception);
         }
 
-        assertThrows(AwsServiceException.class, () -> {
+        assertThrows(SdkClientException.class, () -> {
             try {
                 qldbSession.execute(txnExecutor -> {
                     Result result = txnExecutor.execute(statement);
@@ -290,7 +298,7 @@ public class QldbSessionTest {
     public void testExecuteStartTxnWithInvalidSessionException() {
         // GIVEN
         RetryPolicy retryPolicy = spy(RetryPolicy.none());
-        qldbSession = new QldbSession(mockSession, retryPolicy, READ_AHEAD, system, null);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         // Add an ISE when starting a txn
         final InvalidSessionException exception = InvalidSessionException.builder().message("").build();
         client.queueResponse(exception);
@@ -319,7 +327,7 @@ public class QldbSessionTest {
         client = new MockQldbSessionClient();
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
         mockSession = Session.startSession(LEDGER, client);
-        qldbSession = new QldbSession(mockSession, retryPolicy, READ_AHEAD, system, null);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         // Add an ISE when executing a txn
         final InvalidSessionException exception = InvalidSessionException.builder().message("").build();
@@ -412,7 +420,7 @@ public class QldbSessionTest {
         client = spy(new MockQldbSessionClient());
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
         mockSession = Session.startSession(LEDGER, client);
-        qldbSession = new QldbSession(mockSession, retryPolicy, READ_AHEAD, system, null);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         client.queueResponse(MockResponses.startTxnResponse("id"));
         client.queueResponse(MockResponses.executeResponse(ionList));
         client.queueResponse(MockResponses.ABORT_RESPONSE);
@@ -435,9 +443,14 @@ public class QldbSessionTest {
     @Test
     @DisplayName("execute - SHOULD retry WHEN starting a transaction QLDB throws a BadRequestException")
     public void testRetryExecuteWithTransactionAlreadyOpenException() throws IOException {
-        // BadRequestException on start transaction if the transaction somehow is already open
+        client = spy(new MockQldbSessionClient());
+        client.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockSession = Session.startSession(LEDGER, client);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
+
         final BadRequestException exception = BadRequestException.builder().message("Transaction already open").build();
         client.queueResponse(exception);
+        client.queueResponse(MockResponses.ABORT_RESPONSE);
 
         // Then enqueue a set of successful operations to start, execute and commit the txn
         String txnId = "id";
@@ -452,6 +465,10 @@ public class QldbSessionTest {
         }, retryPolicy, new ExecutionContext());
 
         verify(retryPolicy, times(1)).backoffStrategy();
+        final SendCommandRequest abortRequest =
+            SendCommandRequest.builder().sessionToken(SESSION_TOKEN).abortTransaction(AbortTransactionRequest.builder().build()).build();
+        verify(client, times(1)).sendCommand(
+             eq(abortRequest));
     }
 
     @Test
@@ -459,10 +476,11 @@ public class QldbSessionTest {
     public void testExecuteWithTransactionAlreadyOpenExceptionAndRetryLimitExceeded() throws IOException {
         RetryPolicy retryPolicy = spy(RetryPolicy.none());
 
-        qldbSession = new QldbSession(mockSession, retryPolicy, READ_AHEAD, system, null);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         // BadRequestException on start transaction if the transaction somehow is already open
         final BadRequestException exception = BadRequestException.builder().message("Transaction already open").build();
         client.queueResponse(exception);
+        client.queueResponse(MockResponses.ABORT_RESPONSE);
 
         assertThrows(BadRequestException.class, () -> {
             qldbSession.execute(txnExecutor -> {
@@ -471,20 +489,21 @@ public class QldbSessionTest {
         });
 
         verify(retryPolicy, never()).backoffStrategy();
+
     }
 
     @Test
     @DisplayName("execute - SHOULD close transaction WHEN QLDB fails to execute a statement")
     public void testInternalExecuteWithError() {
         client.queueResponse(MockResponses.startTxnResponse("id"));
-        client.queueResponse(AwsServiceException.builder().message("an Error1").build());
+        client.queueResponse(SdkClientException.builder().message("an Error1").build());
         client.queueResponse(MockResponses.ABORT_RESPONSE);
 
-        assertThrows(AwsServiceException.class, () -> {
+        assertThrows(SdkClientException.class, () -> {
             try {
                 qldbSession.execute(txn -> {
                     return txn.execute(statement);
-                }, retryPolicy, new ExecutionContext());
+                }, RetryPolicy.none(), new ExecutionContext());
             } finally {
                 assertTrue(client.isQueueEmpty());
             }
@@ -492,13 +511,33 @@ public class QldbSessionTest {
     }
 
     @Test
-    @DisplayName("execute - SHOULD bubble up exception WHEN QLDB fails to abort transaction")
+    @DisplayName("execute - SHOULD not bubble up exception WHEN QLDB fails to abort transaction")
     public void testInternalExecuteWithErrorAndErrorOnAbort() {
         client.queueResponse(MockResponses.startTxnResponse("id"));
-        client.queueResponse(AwsServiceException.builder().message("an Error1").build());
-        client.queueResponse(AwsServiceException.builder().message("an Error 2").build());
+        final SdkClientException executionException = SdkClientException.builder().message("an Error1").build();
+        client.queueResponse(executionException);
+        client.queueResponse(SdkClientException.builder().message("an Error 2").build());
 
-        assertThrows(AwsServiceException.class, () -> {
+        try {
+            qldbSession.execute(txn -> txn.execute(statement), RetryPolicy.none(), new ExecutionContext());
+        }  catch(SdkClientException e) {
+            assertTrue(executionException == e);
+        } finally {
+            assertTrue(client.isQueueEmpty());
+        }
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD delay zero ms WHEN backoff strategy is null")
+    public void testNullSleepTime() throws IOException {
+        client.queueResponse(MockResponses.startTxnResponse("id"));
+        client.queueResponse(SdkClientException.builder().message("an Error1").cause(new SocketTimeoutException()).build());
+        client.queueResponse(MockResponses.ABORT_RESPONSE);
+
+        queueTxnExecCommit(ionList, statement, Collections.emptyList());
+        retryPolicy = new RetryPolicy(retryPolicyContext -> null, 1);
+
+        assertDoesNotThrow(() -> {
             try {
                 qldbSession.execute(txn -> txn.execute(statement), retryPolicy, new ExecutionContext());
             } finally {
@@ -507,6 +546,24 @@ public class QldbSessionTest {
         });
     }
 
+    @Test
+    @DisplayName("execute - SHOULD delay zero ms WHEN backoff strategy is negative")
+    public void testNegativeSleepTime() throws IOException {
+        client.queueResponse(MockResponses.startTxnResponse("id"));
+        client.queueResponse(SdkClientException.builder().message("an Error1").cause(new SocketTimeoutException()).build());
+        client.queueResponse(MockResponses.ABORT_RESPONSE);
+
+        queueTxnExecCommit(ionList, statement, Collections.emptyList());
+        retryPolicy = new RetryPolicy(retryPolicyContext -> Duration.ofMillis(-1), 1);
+
+        assertDoesNotThrow(() -> {
+            try {
+                qldbSession.execute(txn -> txn.execute(statement), retryPolicy, new ExecutionContext());
+            } finally {
+                assertTrue(client.isQueueEmpty());
+            }
+        });
+    }
 
     private static <E> void compareIterators(Iterator<E> iterator1, Iterator<E> iterator2) {
         while (iterator2.hasNext() || iterator1.hasNext()) {
@@ -530,7 +587,7 @@ public class QldbSessionTest {
         client.queueResponse(OccConflictException.builder().message("An OCC Exception").build());
     }
 
-    public void queueTxnExecError(SdkServiceException ace) throws IOException {
+    public void queueTxnExecError(SdkException ace) throws IOException {
         client.queueResponse(MockResponses.startTxnResponse("id"));
         client.queueResponse(MockResponses.executeResponse(ionList));
         client.queueResponse(ace);

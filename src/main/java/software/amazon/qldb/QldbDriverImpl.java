@@ -28,7 +28,6 @@ import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
-import software.amazon.qldb.exceptions.TransactionAlreadyOpenException;
 
 /**
  * Implementation of the QldbDriver.
@@ -55,7 +54,7 @@ class QldbDriverImpl implements QldbDriver {
     private final int readAhead;
     private final ExecutorService executorService;
     private final QldbSessionClient amazonQldbSession;
-    private final RetryPolicy retryLimit;
+    private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
 
@@ -69,8 +68,8 @@ class QldbDriverImpl implements QldbDriver {
      * @param qldbSessionClient
      *                  The low-level session used for communication with QLDB.
      * @param retryPolicy
-     *                  The amount of retries sessions created by this driver will attempt upon encountering a non-fatal
-     *                  error.
+     *                  The retry policy that specifes how many times it should be retried and how long to delay the next retry
+     *                  upon encountering a non-fatal error.
      * @param readAhead
      *                  The number of read-ahead buffers for each open result set created from sessions from this
      *                  driver.
@@ -90,7 +89,7 @@ class QldbDriverImpl implements QldbDriver {
                              ExecutorService executorService) {
         this.ledgerName = ledgerName;
         this.amazonQldbSession = qldbSessionClient;
-        this.retryLimit = retryPolicy;
+        this.retryPolicy = retryPolicy;
         this.ionSystem = ionSystem;
         this.isClosed = new AtomicBoolean(false);
         this.readAhead = readAhead;
@@ -110,7 +109,7 @@ class QldbDriverImpl implements QldbDriver {
 
     @Override
     public void execute(ExecutorNoReturn executor) {
-        execute(executor, retryLimit);
+        execute(executor, retryPolicy);
     }
 
     @Override
@@ -123,7 +122,7 @@ class QldbDriverImpl implements QldbDriver {
 
     @Override
     public <T> T execute(Executor<T> executor) {
-        return execute(executor, retryLimit);
+        return execute(executor, retryPolicy);
     }
 
     @Override
@@ -140,8 +139,8 @@ class QldbDriverImpl implements QldbDriver {
             try {
                 qldbSession = getSession();
                 return qldbSession.execute(executor, retryPolicy, executionContext);
-            } catch (final InvalidSessionException | TransactionAlreadyOpenException ex) {
-                logger.debug("Retrying with another session. Error {}", ex.getMessage());
+            } catch (final InvalidSessionException ise) {
+                logger.debug("Retrying with another session. Error {}", ise.getMessage());
             } finally {
                 if (qldbSession != null) {
                     releaseSession(qldbSession);
@@ -154,7 +153,7 @@ class QldbDriverImpl implements QldbDriver {
     public Iterable<String> getTableNames() {
         final Result result = execute(txn -> {
             return txn.execute(TABLE_NAME_QUERY);
-        }, retryLimit);
+        }, retryPolicy);
         return new TableNameIterable(result);
     }
 
@@ -187,7 +186,7 @@ class QldbDriverImpl implements QldbDriver {
 
     private QldbSession createNewSession() {
         final Session session = Session.startSession(ledgerName, amazonQldbSession);
-        return new QldbSession(session, retryLimit, readAhead, ionSystem, executorService);
+        return new QldbSession(session, readAhead, ionSystem, executorService);
     }
 
     private void releaseSession(QldbSession session) {

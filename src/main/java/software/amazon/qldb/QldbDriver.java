@@ -72,7 +72,7 @@ public interface QldbDriver extends AutoCloseable {
      *              A lambda with no return value representing the block of code to be executed within the transaction.
      *              This cannot have any side effects as it may be invoked multiple times.
      *
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     void execute(ExecutorNoReturn executor);
 
@@ -90,7 +90,7 @@ public interface QldbDriver extends AutoCloseable {
      *              A {@link RetryPolicy} that overrides the RetryPolicy set when creating the driver. The given retry policy
      *              will be used when retrying the transaction.
      * @throws TransactionAbortedException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     void execute(ExecutorNoReturn executor, RetryPolicy retryPolicy);
 
@@ -110,7 +110,7 @@ public interface QldbDriver extends AutoCloseable {
      *         invalidated, including if the return value is an object which nests said {@link Result} instances within
      *         it.
      * @throws TransactionAbortedException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     <T> T execute(Executor<T> executor);
 
@@ -137,7 +137,7 @@ public interface QldbDriver extends AutoCloseable {
      *         invalidated, including if the return value is an object which nests said {@link Result} instances within
      *         it.
      * @throws TransactionAbortedException if the Executor lambda calls {@link TransactionExecutor#abort()}.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error executing against QLDB.
      */
     <T> T execute(Executor<T> executor, RetryPolicy retryPolicy);
 
@@ -147,7 +147,7 @@ public interface QldbDriver extends AutoCloseable {
      * @return The Iterable over the table names in the ledger.
      * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
      *                               digest does not match the response from QLDB.
-     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB.
+     * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     Iterable<String> getTableNames();
 
