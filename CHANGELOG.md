@@ -1,4 +1,4 @@
-# [2.0.0-preview](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) - 2020-06-19 
+# [2.0.0-rc.1](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) - 2020-06-19 
 
 We are adding new changes to the QLDB Driver for Java. However Java driver 1.x will
 still be maintained and supported until further notice. We recommend to move to the version
