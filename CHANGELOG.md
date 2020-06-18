@@ -1,9 +1,3 @@
-# Changelog All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic
-Versioning](https://semver.org/spec/v2.0.0.html).
-
 # [2.0.0-preview](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) - 2020-06-19 
 
 We are adding new changes to the QLDB Driver for Java. However Java driver 1.x will
@@ -21,7 +15,6 @@ notes](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc
 * Session pooling functionality moved to `QldbDriver`.  For more details please
 read the [release
 notes](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1).
-* Improved the performance of the driver by removing unnecessary calls to QLDB. 
 * Upgraded dependency from the AWS SDK for Java v1 to the AWS SDK for Java v2. Note,
 the current driver version v1.x is still supported and this version doesn't
 deprecate it. For more details please read the [release
