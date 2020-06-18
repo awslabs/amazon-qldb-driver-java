@@ -15,14 +15,18 @@ Go To File
 # IDE configurations
 *.iml
 .vscode/
+.idea
+*.iml
+out
+.classpath
 
 # Build
 target/
 bin/
+build
 
 # Generated Files
 .classpath
 .factorypath
 .project
 .settings/
-

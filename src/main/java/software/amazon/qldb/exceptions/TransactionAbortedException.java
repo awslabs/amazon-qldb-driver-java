@@ -11,22 +11,22 @@
  * and limitations under the License.
  */
 
-package software.amazon.qldb;
-
-import com.amazon.ion.IonSystem;
+package software.amazon.qldb.exceptions;
 
 /**
- * The abstract base result, containing the properties and methods shared by the asynchronous and synchronous
- * implementations of the result of executing a statement in QLDB.
+ * Exception type representing the abort of a transaction within a lambda execution block. Signals that the lambda
+ * should cease to execute and the current transaction is aborted.
  */
-abstract class BaseResult {
-    final Session session;
-    final String txnId;
-    final IonSystem ionSystem;
+public class TransactionAbortedException extends QldbDriverException {
 
-    BaseResult(Session session, String txnId, IonSystem ionSystem) {
-        this.session = session;
-        this.txnId = txnId;
-        this.ionSystem = ionSystem;
+    /**
+     * Protected constructor for creating an exception wrapping another exception.
+     *
+     * To create this exception, use one of the builder methods.
+     *
+     *
+     */
+    public TransactionAbortedException() {
+        super(Errors.ABORTED_EXCEPTION.get());
     }
 }

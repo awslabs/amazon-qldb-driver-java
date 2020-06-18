@@ -14,13 +14,11 @@
 package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
-import com.amazonaws.annotation.NotThreadSafe;
+import software.amazon.awssdk.annotations.NotThreadSafe;
 
 /**
  * Interface for the result of executing a statement in QLDB.
  *
- * Note that the result is AutoCloseable for usage within try-with-resources blocks, and implements Iterable to allow
- * iteration over the IonValues within the result.
  */
 @NotThreadSafe
 public interface Result extends Iterable<IonValue> {

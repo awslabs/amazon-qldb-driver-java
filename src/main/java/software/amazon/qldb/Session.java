@@ -16,28 +16,6 @@ package software.amazon.qldb;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.annotation.ThreadSafe;
-import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-import com.amazonaws.services.qldbsession.model.AbortTransactionRequest;
-import com.amazonaws.services.qldbsession.model.AbortTransactionResult;
-import com.amazonaws.services.qldbsession.model.CommitTransactionRequest;
-import com.amazonaws.services.qldbsession.model.CommitTransactionResult;
-import com.amazonaws.services.qldbsession.model.EndSessionRequest;
-import com.amazonaws.services.qldbsession.model.EndSessionResult;
-import com.amazonaws.services.qldbsession.model.ExecuteStatementRequest;
-import com.amazonaws.services.qldbsession.model.ExecuteStatementResult;
-import com.amazonaws.services.qldbsession.model.FetchPageRequest;
-import com.amazonaws.services.qldbsession.model.FetchPageResult;
-import com.amazonaws.services.qldbsession.model.InvalidSessionException;
-import com.amazonaws.services.qldbsession.model.OccConflictException;
-import com.amazonaws.services.qldbsession.model.Page;
-import com.amazonaws.services.qldbsession.model.SendCommandRequest;
-import com.amazonaws.services.qldbsession.model.SendCommandResult;
-import com.amazonaws.services.qldbsession.model.StartSessionRequest;
-import com.amazonaws.services.qldbsession.model.StartTransactionRequest;
-import com.amazonaws.services.qldbsession.model.StartTransactionResult;
-import com.amazonaws.services.qldbsession.model.ValueHolder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,8 +23,31 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.annotations.ThreadSafe;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
+import software.amazon.awssdk.services.qldbsession.model.AbortTransactionRequest;
+import software.amazon.awssdk.services.qldbsession.model.AbortTransactionResult;
+import software.amazon.awssdk.services.qldbsession.model.CommitTransactionRequest;
+import software.amazon.awssdk.services.qldbsession.model.CommitTransactionResult;
+import software.amazon.awssdk.services.qldbsession.model.EndSessionRequest;
+import software.amazon.awssdk.services.qldbsession.model.EndSessionResult;
+import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementRequest;
+import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsession.model.FetchPageRequest;
+import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
+import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
+import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
+import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.services.qldbsession.model.SendCommandRequest;
+import software.amazon.awssdk.services.qldbsession.model.SendCommandResponse;
+import software.amazon.awssdk.services.qldbsession.model.StartSessionRequest;
+import software.amazon.awssdk.services.qldbsession.model.StartTransactionRequest;
+import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsession.model.ValueHolder;
 import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbClientException;
+import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
  * Session object representing a communication channel with QLDB.
@@ -60,7 +61,7 @@ class Session implements AutoCloseable {
     private final String ledgerName;
     private final String sessionToken;
     private final String sessionId;
-    private final AmazonQLDBSession client;
+    private final QldbSessionClient client;
 
     /**
      * Constructor for a session to a specific ledger.
@@ -74,7 +75,7 @@ class Session implements AutoCloseable {
      * @param client
      *              The low-level session used for communication with QLDB.
      */
-    private Session(String ledgerName, String sessionToken, String sessionId, AmazonQLDBSession client) {
+    private Session(String ledgerName, String sessionToken, String sessionId, QldbSessionClient client) {
         this.ledgerName = ledgerName;
         this.client = client;
         this.sessionToken = sessionToken;
@@ -91,14 +92,14 @@ class Session implements AutoCloseable {
      *
      * @return A newly created {@link Session}.
      */
-    static Session startSession(String ledgerName, AmazonQLDBSession client) {
-        final StartSessionRequest request = new StartSessionRequest().withLedgerName(ledgerName);
-        final SendCommandRequest command = new SendCommandRequest().withStartSession(request);
+    static Session startSession(String ledgerName, QldbSessionClient client) {
+        final StartSessionRequest request = StartSessionRequest.builder().ledgerName(ledgerName).build();
+        final SendCommandRequest command = SendCommandRequest.builder().startSession(request).build();
 
         logger.debug("Sending start session request: {}", command);
-        final SendCommandResult result = client.sendCommand(command);
-        final String sessionToken = result.getStartSession().getSessionToken();
-        final String sessionId = result.getSdkResponseMetadata().getRequestId();
+        final SendCommandResponse result = client.sendCommand(command);
+        final String sessionToken = result.startSession().sessionToken();
+        final String sessionId = result.responseMetadata().requestId();
 
         return new Session(ledgerName, sessionToken, sessionId, client);
     }
@@ -107,19 +108,10 @@ class Session implements AutoCloseable {
     public void close() {
         try {
             sendEndSession();
-        } catch (AmazonClientException e) {
+        } catch (SdkServiceException e) {
             // We will only log issues closing the session, as QLDB will clean them up after a timeout.
-            logger.warn("Errors closing session: " + e.getMessage(), e);
+            logger.warn("Errors closing session: {}", e.getMessage(), e);
         }
-    }
-
-    /**
-     * Get the low-level session client used for communication with QLDB.
-     *
-     * @return The low-level session.
-     */
-    AmazonQLDBSession getClient() {
-        return client;
     }
 
     /**
@@ -129,15 +121,6 @@ class Session implements AutoCloseable {
      */
     String getId() {
         return sessionId;
-    }
-
-    /**
-     * Get the name of the ledger that this session is connected to.
-     *
-     * @return The name of the ledger this session is connected to.
-     */
-    String getLedgerName() {
-        return ledgerName;
     }
 
     /**
@@ -155,10 +138,10 @@ class Session implements AutoCloseable {
      * @return The result of the abort transaction request.
      */
     AbortTransactionResult sendAbort() {
-        final AbortTransactionRequest request = new AbortTransactionRequest();
+        final AbortTransactionRequest request = AbortTransactionRequest.builder().build();
 
-        SendCommandResult result = send(new SendCommandRequest().withAbortTransaction(request));
-        return result.getAbortTransaction();
+        SendCommandResponse result = send(SendCommandRequest.builder().abortTransaction(request));
+        return result.abortTransaction();
     }
 
     /**
@@ -173,12 +156,13 @@ class Session implements AutoCloseable {
      * @throws OccConflictException if an OCC conflict has been detected within the transaction.
      */
     CommitTransactionResult sendCommit(String txnId, ByteBuffer transactionDigest) {
-        final CommitTransactionRequest request = new CommitTransactionRequest()
-                .withTransactionId(txnId)
-                .withCommitDigest(transactionDigest);
+        final CommitTransactionRequest request = CommitTransactionRequest.builder()
+             .transactionId(txnId)
+             .commitDigest(SdkBytes.fromByteBuffer(transactionDigest))
+             .build();
 
-        SendCommandResult result = send(new SendCommandRequest().withCommitTransaction(request));
-        return result.getCommitTransaction();
+        SendCommandResponse result = send(SendCommandRequest.builder().commitTransaction(request));
+        return result.commitTransaction();
     }
 
     /**
@@ -187,10 +171,10 @@ class Session implements AutoCloseable {
      * @return The result of the end session request.
      */
     EndSessionResult sendEndSession() {
-        final EndSessionRequest request = new EndSessionRequest();
+        final EndSessionRequest request = EndSessionRequest.builder().build();
 
-        SendCommandResult result = send(new SendCommandRequest().withEndSession(request));
-        return result.getEndSession();
+        SendCommandResponse result = send(SendCommandRequest.builder().endSession(request));
+        return result.endSession();
     }
 
     /**
@@ -216,23 +200,26 @@ class Session implements AutoCloseable {
                 for (IonValue parameter : parameters) {
                     parameter.writeTo(writer);
                     writer.finish();
-                    byteParameters.add(new ValueHolder().withIonBinary(ByteBuffer.wrap(stream.toByteArray())));
+                    final SdkBytes sdkBytes = SdkBytes.fromByteArray(stream.toByteArray());
+                    final ValueHolder value = ValueHolder.builder().ionBinary(sdkBytes).build();
+                    byteParameters.add(value);
 
                     // Reset the stream so that it can be re-used.
                     stream.reset();
                 }
             } catch (IOException e) {
-                throw QldbClientException.create(String.format(Errors.SERIALIZING_PARAMS.get(), e.getMessage()),
-                        e, logger);
+                throw QldbDriverException.create(String.format(Errors.SERIALIZING_PARAMS.get(), e.getMessage()),
+                                                 e);
             }
         }
 
-        final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement(statement)
-                .withParameters(byteParameters)
-                .withTransactionId(txnId);
-        SendCommandResult result = send(new SendCommandRequest().withExecuteStatement(request));
-        return result.getExecuteStatement();
+        final ExecuteStatementRequest request = ExecuteStatementRequest.builder()
+                                                                       .statement(statement)
+                                                                       .parameters(byteParameters)
+                                                                       .transactionId(txnId)
+                                                                       .build();
+        SendCommandResponse result = send(SendCommandRequest.builder().executeStatement(request));
+        return result.executeStatement();
     }
 
     /**
@@ -246,12 +233,13 @@ class Session implements AutoCloseable {
      * @return The result of the fetch page request.
      */
     FetchPageResult sendFetchPage(String txnId, String nextPageToken) {
-        final FetchPageRequest request = new FetchPageRequest()
-                .withTransactionId(txnId)
-                .withNextPageToken(nextPageToken);
+        final FetchPageRequest request = FetchPageRequest.builder()
+                                                         .transactionId(txnId)
+                                                         .nextPageToken(nextPageToken)
+                                                         .build();
 
-        SendCommandResult result = send(new SendCommandRequest().withFetchPage(request));
-        return result.getFetchPage();
+        SendCommandResponse result = send(SendCommandRequest.builder().fetchPage(request));
+        return result.fetchPage();
     }
 
     /**
@@ -260,11 +248,11 @@ class Session implements AutoCloseable {
      * @return The result of the start transaction request.
      */
     StartTransactionResult sendStartTransaction() {
-        final StartTransactionRequest request = new StartTransactionRequest();
-        final SendCommandRequest command = new SendCommandRequest().withStartTransaction(request);
+        final StartTransactionRequest request = StartTransactionRequest.builder().build();
+        final SendCommandRequest.Builder command = SendCommandRequest.builder().startTransaction(request);
 
-        final SendCommandResult result = send(command);
-        return result.getStartTransaction();
+        final SendCommandResponse result = send(command);
+        return result.startTransaction();
     }
 
     /**
@@ -277,8 +265,8 @@ class Session implements AutoCloseable {
      * @throws OccConflictException if an OCC conflict was detected when committing a transaction.
      * @throws InvalidSessionException when this session is invalid.
      */
-    private SendCommandResult send(SendCommandRequest request) {
-        final SendCommandRequest command = request.withSessionToken(sessionToken);
+    private SendCommandResponse send(SendCommandRequest.Builder request) {
+        final SendCommandRequest command = request.sessionToken(sessionToken).build();
         logger.debug("Sending request: {}", command);
         return client.sendCommand(command);
     }

@@ -15,13 +15,14 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
-import com.amazonaws.annotation.NotThreadSafe;
-import com.amazonaws.services.qldbsession.model.Page;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.annotations.NotThreadSafe;
+import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 
 /**
@@ -36,12 +37,15 @@ import software.amazon.qldb.exceptions.Errors;
  * This implementation should be used by default to avoid excess memory consumption and to improve performance.
  */
 @NotThreadSafe
-class StreamResult extends BaseResult implements Result {
+class StreamResult implements Result {
     private static final Logger logger = LoggerFactory.getLogger(StreamResult.class);
 
     private final AtomicBoolean isRetrieved;
     private final IonIterator childItr;
     private final boolean isEmpty;
+    private final Session session;
+    private final String txnId;
+    private final IonSystem ionSystem;
 
     /**
      * @param session
@@ -59,7 +63,9 @@ class StreamResult extends BaseResult implements Result {
      */
     StreamResult(Session session, Page firstPage, String txnId, int readAheadBufferCount,
                         IonSystem ionSystem, ExecutorService executorService) {
-        super(session, txnId, ionSystem);
+        this.session = session;
+        this.txnId = txnId;
+        this.ionSystem = ionSystem;
         this.isRetrieved = new AtomicBoolean(false);
         this.childItr = new IonIterator(session, firstPage, txnId, readAheadBufferCount, ionSystem, executorService);
         this.isEmpty = !childItr.hasNext();
@@ -112,7 +118,7 @@ class StreamResult extends BaseResult implements Result {
          */
         IonIterator(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
                     ExecutorService executorService) {
-            Validate.assertIsNotNegative(readAhead, "readAhead");
+            Validate.isNotNegative(readAhead, "readAhead");
             this.retriever = new ResultRetriever(session, firstPage, txnId, readAhead, ionSystem,
                     executorService);
         }
@@ -121,8 +127,8 @@ class StreamResult extends BaseResult implements Result {
          * Get boolean indicating if there is a next value in the iterator.
          *
          * @return Boolean indicating whether or not there is a next value.
-         * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB, when trying to get
-         *                                             the next page of results.
+         * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB,
+         *      when trying to get the next page of results.
          */
         @Override
         public boolean hasNext() {
@@ -133,8 +139,8 @@ class StreamResult extends BaseResult implements Result {
          * Get the next value in the iterator.
          *
          * @return The next IonValue resulting from the execution statement.
-         * @throws com.amazonaws.AmazonClientException if there is an error communicating with QLDB, when trying to get
-         *                                             the next page of results.
+         * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB,
+         *      when trying to get the next page of results.
          */
         @Override
         public IonValue next() {

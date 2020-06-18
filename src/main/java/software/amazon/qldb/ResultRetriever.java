@@ -15,8 +15,6 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
-import com.amazonaws.services.qldbsession.model.Page;
-import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ExecutorService;
@@ -25,8 +23,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbClientException;
+import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
  * Used to retrieve the results from QLDB, either asynchronously or synchronously.
@@ -66,7 +66,7 @@ class ResultRetriever {
      */
     ResultRetriever(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
                            ExecutorService executorService) {
-        Validate.assertIsNotNegative(readAhead, "readAhead");
+        Validate.isNotNegative(readAhead, "readAhead");
 
         this.session = session;
         this.currentPage = firstPage;
@@ -76,13 +76,13 @@ class ResultRetriever {
         this.isClosed = new AtomicBoolean(false);
 
         // Start the retriever thread if there are more chunks to retrieve.
-        if (currentPage.getNextPageToken() == null) {
+        if (currentPage.nextPageToken() == null) {
             this.retriever = null;
         } else if (0 == readAhead) {
-            this.retriever = new Retriever(session, txnId, currentPage.getNextPageToken());
+            this.retriever = new Retriever(session, txnId, currentPage.nextPageToken());
         } else {
             final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId,
-                    currentPage.getNextPageToken(), readAhead, isClosed);
+                    currentPage.nextPageToken(), readAhead, isClosed);
             this.retriever = runner;
 
             if (null == executorService) {
@@ -102,10 +102,10 @@ class ResultRetriever {
      */
     public synchronized boolean hasNext() {
         if (isClosed.get()) {
-            throw QldbClientException.create(Errors.RESULT_PARENT_INACTIVE.get(), session.getToken(), logger);
+            throw QldbDriverException.create(Errors.RESULT_PARENT_INACTIVE.get(), retriever.txnId);
         }
-        while (currentResultValueIndex >= currentPage.getValues().size()) {
-            if (null == currentPage.getNextPageToken()) {
+        while (currentResultValueIndex >= currentPage.values().size()) {
+            if (null == currentPage.nextPageToken()) {
                 return false;
             }
             currentPage = retriever.getNextPage();
@@ -125,9 +125,9 @@ class ResultRetriever {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-
-        final ByteBuffer bytes = currentPage.getValues().get(currentResultValueIndex++).getIonBinary();
-        return ionSystem.singleValue(bytes.array());
+        // TODO: Use an InputStream instead after the GitHub feature https://github.com/amzn/ion-java/issues/292 is resolved
+        final byte[] bytes = currentPage.values().get(currentResultValueIndex++).ionBinary().asByteArray();
+        return ionSystem.singleValue(bytes);
     }
 
     /**
@@ -165,11 +165,11 @@ class ResultRetriever {
          * Retrieve the next chunk of data from QLDB.
          *
          * @return The next chunk of data from QLDB.
-         * @throws QldbClientException if an unexpected error occurs during result retrieval.
+         * @throws QldbDriverException if an unexpected error occurs during result retrieval.
          */
         Page getNextPage() {
-            final Page result = session.sendFetchPage(txnId, nextPageToken).getPage();
-            nextPageToken = result.getNextPageToken();
+            final Page result = session.sendFetchPage(txnId, nextPageToken).page();
+            nextPageToken = result.nextPageToken();
             return result;
         }
     }
@@ -209,15 +209,14 @@ class ResultRetriever {
                     try {
                         while (!results.offer(new ResultHolder(page), 50, TimeUnit.MILLISECONDS)) {
                             if (isClosed.get()) {
-                                throw QldbClientException.create(Errors.RESULT_PARENT_INACTIVE.get(),
-                                        session.getToken(), logger);
+                                throw QldbDriverException.create(Errors.RESULT_PARENT_INACTIVE.get(),
+                                                                 super.txnId);
                             }
                             Thread.yield();
                         }
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie,
-                                logger);
+                        throw QldbDriverException.create(Errors.RETRIEVE_INTERRUPTED.get(), ie);
                     }
                 }
             } catch (Exception e) {
@@ -243,7 +242,7 @@ class ResultRetriever {
                 return result.getResult();
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                throw QldbClientException.create(Errors.RETRIEVE_INTERRUPTED.get(), session.getToken(), ie, logger);
+                throw QldbDriverException.create(Errors.RETRIEVE_INTERRUPTED.get(), ie);
             }
         }
     }

@@ -13,73 +13,146 @@
 
 package software.amazon.qldb;
 
-import com.amazon.ion.IonSystem;
-import com.amazonaws.annotation.ThreadSafe;
-import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-import java.util.concurrent.ExecutorService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.TransactionAbortedException;
 
 /**
- * <p>Represents a factory for accessing sessions to a specific ledger within QLDB. This class or
- * {@link PooledQldbDriver} should be the main entry points to any interaction with QLDB. {@link #getSession()} will
- * create a {@link QldbSession} to the specified ledger within QLDB as a communication channel. Any sessions acquired
- * should be cleaned up with {@link QldbSession#close()} to free up resources.</p>
+ * <p>The driver for Amazon QLDB.</p>
  *
- * <p>This factory does not attempt to re-use or manage sessions in any way. It is recommended to use
- * {@link PooledQldbDriver} for both less resource usage and lower latency.</p>
+ * <p>The main goal of the driver is to receive lambda functions that are passed to any of its execute methods.
+ * The code in these lambda functions should be idempotent as the lambda function might be
+ * called more than once based on the TransactionRetryPolicy.
+ * </p>
+ *
+ * <h3>Idempotency:</h3>
+ * <p>A transaction needs to be idempotent to avoid undesirable side effects.</p>
+ *
+ * <p>For example, consider the below transaction which inserts a document into People table. It first checks if the document
+ * already exists in the table or not. So even if this transaction is executed multiple times, it will not cause any side
+ * effects.</p>
+ *
+ * <p>Without this check, the transaction might duplicate documents in the table if it is retried. A retry may happen when the
+ * transaction commits successfully on QLDB server side, but the driver/client timeouts waiting for a response.</p>
+ *
+ * For example, the following code shows a lambda that is retryable:
+ * <pre>{@code
+ * driver.execute(txn -> {
+ *     Result result = txn.execute("SELECT firstName, age, lastName FROM People WHERE firstName = 'Bob'");
+ *     boolean recordExists = result.iterator().hasNext();
+ *     if (recordExists) {
+ *        txn.execute("UPDATE People SET age = 32 WHERE firstName = 'Bob'");
+ *     } else {
+ *        txn.execute("INSERT INTO People {'firstName': 'Bob', 'lastName': 'Doe', 'age':32}");
+ *     }
+ * });
+ * }</pre>
+ *
+ * <h3>Instantiating the driver</h3>
+ * The driver can be instantiated using the {@link QldbDriverBuilder}. Example:
+ *
+ * <pre>{@code
+ *     QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
+ *
+ *     QldbDriverBuilder builder = QldbDriver
+ *          .builder()
+ *          .ledger(ledger);
+ *          .maxConcurrentTransactions(poolLimit)
+ *          .transactionRetryPolicy(RetryPolicy.maxRetries(3));
+ *          .sessionClientBuilder(sessionClientBuilder)
+ *          .build();
+ * }</pre>
+ *
+ *
+ *
  */
-@ThreadSafe
-public class QldbDriver extends BaseSyncQldbDriver {
-    private static final Logger logger = LoggerFactory.getLogger(QldbDriver.class);
-
-    protected QldbDriver(String ledgerName, AmazonQLDBSession amazonQldbSession, int occRetryLimit, int readAhead,
-                         IonSystem ionSystem, ExecutorService executorService) {
-        super(ledgerName, amazonQldbSession, occRetryLimit, readAhead, ionSystem, executorService);
-    }
+public interface QldbDriver extends AutoCloseable {
+    /**
+     * Execute the Executor lambda against QLDB within a transaction where no result is expected.
+     *
+     * @param executor
+     *              A lambda with no return value representing the block of code to be executed within the transaction.
+     *              This cannot have any side effects as it may be invoked multiple times.
+     *
+     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
+     */
+    void execute(ExecutorNoReturn executor);
 
     /**
-     * Retrieve a builder object for creating a {@link QldbDriver}.
+     * <p>Execute the Executor lambda against QLDB within a transaction where no result is expected.</p>
      *
-     * @return The builder object for creating a {@link QldbDriver}.
+     * This method accepts a RetryPolicy that overrides the RetryPolicy set when creating the driver. Use it
+     * to customize the backoff delay used when retrying transactions.
+     *
+     * @param executor
+     *              A lambda with no return value representing the block of code to be executed within the transaction.
+     *              This cannot have any side effects as it may be invoked multiple times.
+     *
+     * @param retryPolicy
+     *              A {@link RetryPolicy} that overrides the RetryPolicy set when creating the driver. The given retry policy
+     *              will be used when retrying the transaction.
+     * @throws TransactionAbortedException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
      */
-    public static QldbDriverBuilder builder() {
-        return new QldbDriverBuilder();
-    }
+    void execute(ExecutorNoReturn executor, RetryPolicy retryPolicy);
 
     /**
-     * <p>Create and return a newly instantiated {@link QldbSession} object.</p>
+     * Execute the Executor lambda against QLDB and retrieve the result within a transaction.
      *
-     * <p>This will implicitly start a new session with QLDB.</p>
+     * @param executor
+     *              A lambda representing the block of code to be executed within the transaction. This cannot have any
+     *              side effects as it may be invoked multiple times, and the result cannot be trusted until the
+     *              transaction is committed.
+     * @param <T>
+     *         The type of value that will be returned.
      *
-     * @return The newly active {@link QldbSession} object.
-     * @throws IllegalStateException if this driver has been closed.
-     * @throws com.amazonaws.AmazonClientException if there is an error starting a session to QLDB.
+     * @return The return value of executing the executor. Note that if you directly return a {@link Result}, this will
+     *         be automatically buffered in memory before the implicit commit to allow reading, as the commit will close
+     *         any open results. Any other {@link Result} instances created within the executor block will be
+     *         invalidated, including if the return value is an object which nests said {@link Result} instances within
+     *         it.
+     * @throws TransactionAbortedException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
      */
-    public QldbSession getSession() {
-        if (isClosed.get()) {
-            logger.error(Errors.DRIVER_CLOSED.get());
-            throw new IllegalStateException(Errors.DRIVER_CLOSED.get());
-        }
-
-        logger.debug("Creating new session.");
-        final Session session = Session.startSession(ledgerName, amazonQldbSession);
-        return new QldbSessionImpl(session, retryLimit, readAhead, ionSystem, executorService);
-    }
+    <T> T execute(Executor<T> executor);
 
     /**
-     * Builder object for creating a QldbDriver, allowing for configuration of the parameters of construction.
+     * Execute the Executor lambda against QLDB and retrieve the result within a transaction.
+     *
+     * This method accepts a RetryPolicy that overrides the RetryPolicy set when creating the driver. Use it
+     * to customize the backoff delay used when retrying transactions.
+     *
+     * @param executor
+     *              A lambda representing the block of code to be executed within the transaction. This cannot have any
+     *              side effects as it may be invoked multiple times, and the result cannot be trusted until the
+     *              transaction is committed.
+     * @param retryPolicy
+     *              A {@link RetryPolicy} that overrides the RetryPolicy set when creating the driver. The given retry policy
+     *              will be used when retrying the transaction.
+     *
+     * @param <T>
+     *         The type of value that will be returned.
+     *
+     * @return The return value of executing the executor. Note that if you directly return a {@link Result}, this will
+     *         be automatically buffered in memory before the implicit commit to allow reading, as the commit will close
+     *         any open results. Any other {@link Result} instances created within the executor block will be
+     *         invalidated, including if the return value is an object which nests said {@link Result} instances within
+     *         it.
+     * @throws TransactionAbortedException if the Executor lambda calls {@link TransactionExecutor#abort()}.
+     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error executing against QLDB.
      */
-    public static class QldbDriverBuilder extends BaseSyncQldbDriverBuilder<QldbDriverBuilder, QldbDriver> {
-        /**
-         * Restricted constructor. Use {@link #builder()} to retrieve an instance of this class.
-         */
-        protected QldbDriverBuilder() {}
+    <T> T execute(Executor<T> executor, RetryPolicy retryPolicy);
 
-        @Override
-        protected QldbDriver createDriver() {
-            return new QldbDriver(ledgerName, client, retryLimit, readAhead, ionSystem, executorService);
-        }
+    /**
+     * Retrieve the table names that are available within the ledger.
+     *
+     * @return The Iterable over the table names in the ledger.
+     * @throws IllegalStateException if this QldbSession has been closed already, or if the transaction's commit
+     *                               digest does not match the response from QLDB.
+     * @throws software.amazon.awssdk.awscore.exception.AwsServiceException if there is an error communicating with QLDB.
+     */
+    Iterable<String> getTableNames();
+
+
+    static QldbDriverBuilder builder() {
+        return new QldbDriverImplBuilder();
     }
 }

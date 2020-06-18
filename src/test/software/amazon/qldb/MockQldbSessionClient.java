@@ -12,20 +12,26 @@
  */
 package software.amazon.qldb;
 
-import com.amazonaws.AmazonWebServiceRequest;
-import com.amazonaws.ResponseMetadata;
-import com.amazonaws.services.qldbsession.AmazonQLDBSession;
-import com.amazonaws.services.qldbsession.model.SendCommandRequest;
-import com.amazonaws.services.qldbsession.model.SendCommandResult;
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.IonValue;
+import com.amazon.ion.system.IonSystemBuilder;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Queue;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
+import software.amazon.awssdk.services.qldbsession.model.SendCommandRequest;
+import software.amazon.awssdk.services.qldbsession.model.SendCommandResponse;
 
-public class MockQldbSessionClient implements AmazonQLDBSession {
+public class MockQldbSessionClient implements QldbSessionClient {
     private static class Holder {
-        public final SendCommandResult result;
+
+        public final SendCommandResponse result;
         public final RuntimeException exception;
 
-        public Holder(SendCommandResult result) {
+        public Holder(SendCommandResponse result) {
             this.result = result;
             this.exception = null;
         }
@@ -34,7 +40,9 @@ public class MockQldbSessionClient implements AmazonQLDBSession {
             this.result = null;
             this.exception = e;
         }
+
     }
+    private IonSystem system = IonSystemBuilder.standard().build();
 
     private final Queue<Holder> resultQueue;
 
@@ -43,7 +51,7 @@ public class MockQldbSessionClient implements AmazonQLDBSession {
     }
 
     @Override
-    public SendCommandResult sendCommand(SendCommandRequest sendCommandRequest) {
+    public SendCommandResponse sendCommand(SendCommandRequest sendCommandRequest) {
         final Holder response = resultQueue.remove();
         if (response.exception != null) {
             throw response.exception;
@@ -52,25 +60,50 @@ public class MockQldbSessionClient implements AmazonQLDBSession {
         return response.result;
     }
 
-    @Override
-    public void shutdown() {
-
-    }
-
-    @Override
-    public ResponseMetadata getCachedResponseMetadata(AmazonWebServiceRequest amazonWebServiceRequest) {
-        return null;
-    }
-
     public boolean isQueueEmpty() {
         return resultQueue.isEmpty();
     }
 
-    public void queueResponse(SendCommandResult response) {
+    public MockQldbSessionClient queueResponse(SendCommandResponse response) {
         resultQueue.add(new Holder(response));
+        return this;
+    }
+
+    public MockQldbSessionClient startDummySession() {
+        queueResponse(MockResponses.START_SESSION_RESPONSE);
+        return this;
+    }
+
+    public MockQldbSessionClient addEndSession() {
+        queueResponse(MockResponses.endSessionResponse());
+        return this;
+    }
+
+    public MockQldbSessionClient addDummyTransaction(String query) throws IOException {
+        return addDummyTransaction(query, null);
+    }
+
+    public MockQldbSessionClient addDummyTransaction(String query, String txnId) throws IOException {
+        txnId = txnId == null ? "id" : txnId;
+        QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
+        txnHash = Transaction.dot(txnHash, query, Collections.emptyList(), system);
+        queueResponse(MockResponses.startTxnResponse(txnId));
+        queueResponse(MockResponses.executeResponse(Collections.emptyList()));
+        queueResponse(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
+        return this;
     }
 
     public void queueResponse(RuntimeException e) {
         resultQueue.add(new Holder(e));
+    }
+
+    @Override
+    public String serviceName() {
+        return null;
+    }
+
+    @Override
+    public void close() {
+
     }
 }

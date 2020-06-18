@@ -14,7 +14,18 @@
 package software.amazon.qldb;
 
 /**
- * Represents a function that accepts a {@link TransactionExecutor} and returns nothing.
+ * A functional interface that contains all the code to be executed in a QLDB transaction but doesn't return a value.
+ *
+ * <p>
+ * The transaction commits after the function finishes executing all statements and if no exception is thrown inside the function.
+ * </p>
+ * <p>
+ * If an exception is thrown then the transaction will be aborted.
+ * </p>
+ * <p>
+ * The function will receive a {@link TransactionExecutor} to execute PartiQL statements.
+ * </p>
+ *
  */
 @FunctionalInterface
 public interface ExecutorNoReturn {
