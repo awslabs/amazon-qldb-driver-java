@@ -27,15 +27,13 @@ is to read [Getting Started with the Amazon QLDB Driver](https://docs.aws.amazon
 
 ## See also
 
-1. **Driver Recommendations** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon
-.com/qldb/latest/developerguide/driver.best-practices.html) 
+1. **Driver Recommendations** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon.com/qldb/latest/developerguide/driver.best-practices.html) 
 in the QLDB documentation.
 1. **Exception handling when using QLDB Drivers** &mdash; Refer to the section [Common Errors while using the Amazon 
 QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) 
 which describes runtime exceptions that can be thrown by the Amazon QLDB Driver when calling the qldb-session APIs.
 1. **Using Amazon Ion Java** &mdash; Amazon Ion is a richly-typed, self-describing, hierarchical data serialization 
-format offering interchangeable binary and text representations. For more information read the [Ion docs](http://amzn
-.GitHub.io/ion-docs/) for [Amazon Ion Java](https://github.com/amzn/ion-java)
+format offering interchangeable binary and text representations. For more information read the [Ion docs](http://amzn.GitHub.io/ion-docs/) for [Amazon Ion Java](https://github.com/amzn/ion-java)
 1. **Using PartiQL** &mdash; Amazon QLDB uses PartiQL to send requests to the ledger database. You can get started with 
 the [PartiQL Tutorial](https://PartiQL.org/tutorial.html). Also read the [PartiQL Reference](https://docs.aws.amazon.com/en_pv/qldb/latest/developerguide/ql-reference.html) 
 from the Amazon QLDB Developer Guide. 
