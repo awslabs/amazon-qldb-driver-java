@@ -1,4 +1,4 @@
-# [2.0.0-rc.1](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) - 2020-06-19 
+# [2.0.0-rc.1](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) 
 
 We are adding new changes to the QLDB Driver for Java. However Java driver 1.x will
 still be maintained and supported until further notice. We recommend to move to the version
@@ -9,6 +9,9 @@ still be maintained and supported until further notice. We recommend to move to 
 * Added the `getTableNames` method to the `QldbDriver` class. For more details please
 read the [release
 notes](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1).
+* Added a `RetryPolicy` for transactions. Now, the driver accepts a `RetryPolicy`
+instead of the retryLimit that allows you to define the number of retry attempts
+and the backoff strategy.
 
 ### :hammer_and_wrench: Improvements
 
@@ -37,6 +40,8 @@ notes](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc
 * `QldbDriver.execute(String)` method has been removed as we found it made the 
 driver confusing about when to use one execute method over the other. Please use `QldbDriver
 .execute(ExecutorNoReturn executor)` method  or `QldbDriver.execute(Executor executor)` instead.
+
+* The `RetryIndicator` has been removed in favor of the `RetryPolicy`.  
 
 ## [1.1.0](https://github.com/awslabs/amazon-qldb-driver-java/compare/v1.0.2...v1.1.0) - 2020-03-20 
 ### Features 
