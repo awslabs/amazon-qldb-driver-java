@@ -46,7 +46,7 @@ driver confusing about when to use one execute method over the other. Please use
 * `PooledQldbDriverBuilder.poolTimeout` has been removed. We consider that it was confusing and decided to remove it as
  it addded marginal value.
 
-* `PooledQldbDriverBuilder.pollLimit` has been renamed to `QldbDriverBuilder.maxConcurrentTransactions`. We made 
+* `PooledQldbDriverBuilder.poolLimit` has been renamed to `QldbDriverBuilder.maxConcurrentTransactions`. We made 
  this change as we think that makes the driver easier to understand and use.
 
 ## [1.1.0](https://github.com/awslabs/amazon-qldb-driver-java/compare/v1.0.2...v1.1.0) - 2020-03-20 
