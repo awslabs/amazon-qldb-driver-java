@@ -22,12 +22,12 @@ notes](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc
 the current driver version v1.x is still supported and this version doesn't
 deprecate it. For more details please read the [release
 notes](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1).
- 
+
 
 ### :bug: Fixed 
 * Fixed the issue where two different Ion Java packages were present in the classpath.
 
-### :rotating_light:Removed
+### :rotating_light:Breaking Changes
 
 * `PooledQldbDriver` has been removed. Please use `QldbDriver` instead. For more
 details please read the [release
@@ -42,6 +42,12 @@ driver confusing about when to use one execute method over the other. Please use
 .execute(ExecutorNoReturn executor)` method  or `QldbDriver.execute(Executor executor)` instead.
 
 * The `RetryIndicator` has been removed in favor of the `RetryPolicy`.  
+
+* `PooledQldbDriverBuilder.poolTimeout` has been removed. We consider that it was confusing and decided to remove it as
+ it addded marginal value.
+
+* `PooledQldbDriverBuilder.pollLimit` has been renamed to `QldbDriverBuilder.maxConcurrentTransactions`. We made 
+ this change as we think that makes the driver easier to understand and use.
 
 ## [1.1.0](https://github.com/awslabs/amazon-qldb-driver-java/compare/v1.0.2...v1.1.0) - 2020-03-20 
 ### Features 
