@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,7 +10,13 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
@@ -24,11 +30,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -40,7 +43,7 @@ public class TestStreamResult {
     private static final String TXN_ID = "txnId";
     private static final String PAGE_TOKEN = "token";
     private static final int READ_AHEAD_BUFFER_COUNT = 0;
-    private static final IonSystem ionSystem = IonSystemBuilder.standard().build();
+    private static final IonSystem ION_SYSTEM = IonSystemBuilder.standard().build();
 
     private List<ValueHolder> mockValues;
 
@@ -50,10 +53,7 @@ public class TestStreamResult {
     @Mock
     private Page mockPage;
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
         mockValues = new ArrayList<>();
@@ -65,9 +65,9 @@ public class TestStreamResult {
     public void testIsEmpty() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
-        Assert.assertTrue(streamResult.isEmpty());
+        assertTrue(streamResult.isEmpty());
     }
 
     @Test
@@ -75,9 +75,9 @@ public class TestStreamResult {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.getValues()).thenReturn(mockValues);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
-        Assert.assertFalse(streamResult.isEmpty());
+        assertFalse(streamResult.isEmpty());
     }
 
     @Test
@@ -85,33 +85,31 @@ public class TestStreamResult {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.getValues()).thenReturn(mockValues);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
-        Assert.assertTrue(itr.hasNext());
+        assertTrue(itr.hasNext());
     }
 
     @Test
     public void testIteratorRetrieveTwice() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
         streamResult.iterator();
 
-        thrown.expect(IllegalStateException.class);
-
-        streamResult.iterator();
+        assertThrows(IllegalStateException.class, streamResult::iterator);
     }
 
     @Test
     public void testIteratorHasNextWhenEmpty() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
-        Assert.assertFalse(itr.hasNext());
+        assertFalse(itr.hasNext());
     }
 
     @Test
@@ -119,25 +117,23 @@ public class TestStreamResult {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.getValues()).thenReturn(mockValues);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
         final IonValue result = itr.next();
         final IonValue expectedString = SYSTEM.singleValue(STR);
-        Assert.assertEquals(expectedString, result);
+        assertEquals(expectedString, result);
     }
 
     @Test
     public void testIteratorNextWhenTerminal() {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
 
-        thrown.expect(NoSuchElementException.class);
-
-        itr.next();
+        assertThrows(NoSuchElementException.class, itr::next);
     }
 
     @Test
@@ -148,17 +144,15 @@ public class TestStreamResult {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(PAGE_TOKEN);
         Mockito.doThrow(exception).when(mockSession).sendFetchPage(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
         final StreamResult streamResult = new StreamResult(
-                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ionSystem, null);
+                mockSession, mockPage, TXN_ID, READ_AHEAD_BUFFER_COUNT, ION_SYSTEM, null);
 
         final Iterator<IonValue> itr = streamResult.iterator();
 
-        thrown.expect(AmazonClientException.class);
-
         try {
             itr.next();
-            itr.next();
+            assertThrows(AmazonClientException.class, itr::next);
         } catch (AmazonClientException e) {
-            Assert.assertEquals(exception.getMessage(), e.getMessage());
+            assertEquals(exception.getMessage(), e.getMessage());
             throw e;
         }
     }

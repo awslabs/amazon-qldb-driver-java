@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,7 +10,15 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
@@ -32,14 +40,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.http.HttpStatus;
 import org.apache.http.NoHttpResponseException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import org.mockito.MockitoAnnotations;
 import software.amazon.qldb.exceptions.AbortException;
 
@@ -57,10 +60,7 @@ public class TestQldbSession {
     @Mock
     private RetryIndicator mockRetryIndicator;
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
 
@@ -79,31 +79,31 @@ public class TestQldbSession {
     @Test
     public void testAbortOrClose() {
         client.queueResponse(MockResponses.ABORT_RESPONSE);
-        Assert.assertTrue(qldbSession.abortOrClose());
-        Assert.assertFalse(qldbSession.isClosed());
+        assertTrue(qldbSession.abortOrClose());
+        assertFalse(qldbSession.isClosed());
     }
 
     @Test
     public void testAbortOrCloseWhenClosed() {
         client.queueResponse(MockResponses.endSessionResponse());
         qldbSession.close();
-        Assert.assertTrue(qldbSession.isClosed());
-        Assert.assertFalse(qldbSession.abortOrClose());
+        assertTrue(qldbSession.isClosed());
+        assertFalse(qldbSession.abortOrClose());
     }
 
     @Test
     public void testAbortOrCloseFailed() {
         client.queueResponse(new AmazonClientException("an error"));
-        Assert.assertFalse(qldbSession.abortOrClose());
-        Assert.assertTrue(qldbSession.isClosed());
+        assertFalse(qldbSession.abortOrClose());
+        assertTrue(qldbSession.isClosed());
     }
 
-    // this also tests isClosed()
+    // This also tests isClosed().
     @Test
     public void testClose() {
         client.queueResponse(MockResponses.endSessionResponse());
         qldbSession.close();
-        Assert.assertTrue(qldbSession.isClosed());
+        assertTrue(qldbSession.isClosed());
     }
 
     @Test
@@ -111,19 +111,19 @@ public class TestQldbSession {
         client.queueResponse(MockResponses.endSessionResponse());
         qldbSession.close();
         qldbSession.close();
-        Assert.assertTrue(qldbSession.isClosed());
+        assertTrue(qldbSession.isClosed());
     }
 
     @Test
     public void testCloseWhenException() {
         client.queueResponse(new AmazonClientException("msg"));
         qldbSession.close();
-        Assert.assertTrue(qldbSession.isClosed());
+        assertTrue(qldbSession.isClosed());
     }
 
     @Test
     public void testIsClosedWhenNotClosed() {
-        Assert.assertFalse(qldbSession.isClosed());
+        assertFalse(qldbSession.isClosed());
     }
 
     @Test
@@ -132,27 +132,26 @@ public class TestQldbSession {
         client.queueResponse(exception);
         client.queueResponse(MockResponses.endSessionResponse());
 
-        thrown.expect(InvalidSessionException.class);
         try (QldbSessionImpl qldbSession = new QldbSessionImpl(mockSession, RETRY_LIMIT, READ_AHEAD, system, null)) {
-            qldbSession.startTransaction();
+            assertThrows(InvalidSessionException.class, qldbSession::startTransaction);
         } finally {
-            Assert.assertTrue(client.isQueueEmpty());
+            assertTrue(client.isQueueEmpty());
         }
     }
 
     @Test
     public void testGetLedgerName() {
-        Assert.assertEquals(LEDGER, qldbSession.getLedgerName());
+        assertEquals(LEDGER, qldbSession.getLedgerName());
     }
 
     @Test
     public void testGetSessionToken() {
-        Assert.assertEquals(MockResponses.SESSION_TOKEN, qldbSession.getSessionToken());
+        assertEquals(MockResponses.SESSION_TOKEN, qldbSession.getSessionToken());
     }
 
     @Test
     public void testGetSessionId() {
-        Assert.assertEquals(MockResponses.REQUEST_ID, qldbSession.getSessionId());
+        assertEquals(MockResponses.REQUEST_ID, qldbSession.getSessionId());
     }
 
     @Test
@@ -160,27 +159,26 @@ public class TestQldbSession {
         final String id = "id";
         client.queueResponse(MockResponses.startTxnResponse(id));
         final Transaction transaction = qldbSession.startTransaction();
-        Assert.assertEquals(id, transaction.getTransactionId());
+        assertEquals(id, transaction.getTransactionId());
     }
 
     @Test
     public void testStartTransactionWhenClosed() {
         client.queueResponse(MockResponses.endSessionResponse());
 
-        thrown.expect(IllegalStateException.class);
-
         qldbSession.close();
-        qldbSession.startTransaction();
+
+        assertThrows(IllegalStateException.class,
+            () -> qldbSession.startTransaction());
     }
 
     @Test
     public void testStartTransactionError() {
         client.queueResponse(new AmazonClientException("an error"));
 
-        thrown.expect(AmazonClientException.class);
-        thrown.expectMessage("an error");
-
-        qldbSession.startTransaction();
+        assertThrows(AmazonClientException.class,
+            () -> qldbSession.startTransaction(),
+            "an error");
     }
 
     @Test
@@ -188,16 +186,14 @@ public class TestQldbSession {
         final InvalidSessionException exception = new InvalidSessionException("msg");
         client.queueResponse(exception);
 
-        thrown.expect(InvalidSessionException.class);
-
-        qldbSession.startTransaction();
+        assertThrows(InvalidSessionException.class,
+            () -> qldbSession.startTransaction());
     }
 
     @Test
     public void testExecuteWithEmptyString() {
-        thrown.expect(IllegalArgumentException.class);
-
-        qldbSession.execute("");
+        assertThrows(IllegalArgumentException.class,
+            () -> qldbSession.execute(""));
     }
 
     @Test
@@ -206,33 +202,30 @@ public class TestQldbSession {
         client.queueResponse(new AmazonClientException("an error1"));
         client.queueResponse(new AmazonClientException("an error2"));
 
-        thrown.expect(AmazonClientException.class);
         try {
-            qldbSession.execute(statement);
+            assertThrows(AmazonClientException.class,
+                () -> qldbSession.execute(statement));
         } finally {
-            Assert.assertTrue(client.isQueueEmpty());
+            assertTrue(client.isQueueEmpty());
         }
     }
 
     @Test
     public void testExecuteWithNullString() {
-        thrown.expect(IllegalArgumentException.class);
-
-        qldbSession.execute(null, ionList);
+        assertThrows(IllegalArgumentException.class,
+            () -> qldbSession.execute(null, ionList));
     }
 
     @Test
     public void testExecuteWithListNullParameters() {
-        thrown.expect((IllegalArgumentException.class));
-
-        qldbSession.execute(statement, (List<IonValue>) null);
+        assertThrows(IllegalArgumentException.class,
+            () -> qldbSession.execute(statement, (List<IonValue>) null));
     }
 
     @Test
     public void testExecuteWithVargNullParameters() {
-        thrown.expect((IllegalArgumentException.class));
-
-        qldbSession.execute(statement, (IonValue[]) null);
+        assertThrows(IllegalArgumentException.class,
+            () -> qldbSession.execute(statement, (IonValue[]) null));
     }
 
     @Test
@@ -322,12 +315,11 @@ public class TestQldbSession {
     @Test
     public void testExecuteWithOccConflict() throws IOException {
         // Add one more error response than the number of configured OCC retries.
-        thrown.expect(OccConflictException.class);
-
         for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
             queueTxnExecError("id" + i);
         }
-        qldbSession.execute(statement);
+        assertThrows(OccConflictException.class,
+            () -> qldbSession.execute(statement));
     }
 
     @Test
@@ -346,7 +338,7 @@ public class TestQldbSession {
         queueTxnExecCommit(ionList, statement, Collections.emptyList());
 
         qldbSession.execute(txnExecutor -> {
-            Result result = txnExecutor.execute(statement);
+            txnExecutor.execute(statement);
         }, mockRetryIndicator);
         verify(mockRetryIndicator, times(0)).onRetry(0);
     }
@@ -357,24 +349,23 @@ public class TestQldbSession {
         final AtomicBoolean executedFlag = new AtomicBoolean(false);
 
         qldbSession.execute(txnExecutor -> {
-            Result result = txnExecutor.execute(statement);
+            txnExecutor.execute(statement);
             executedFlag.set(true);
         });
-        Assert.assertTrue(executedFlag.get());
+        assertTrue(executedFlag.get());
     }
 
     @Test
     public void testExecuteExecutorLambdaWithNoReturnValueOccConflict() throws IOException {
         // Add one more error response than the number of configured OCC retries.
-        thrown.expect(OccConflictException.class);
-
         for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
             queueTxnExecError("id" + i);
         }
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result result = txnExecutor.execute(statement);
-            }, mockRetryIndicator);
+            assertThrows(OccConflictException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    txnExecutor.execute(statement);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -398,12 +389,11 @@ public class TestQldbSession {
         // This should throw.
         queueTxnExecError(exception3);
 
-        thrown.expect(AmazonQLDBSessionException.class);
-
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result result = txnExecutor.execute(statement);
-            }, mockRetryIndicator);
+            assertThrows(AmazonQLDBSessionException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    txnExecutor.execute(statement);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -413,8 +403,6 @@ public class TestQldbSession {
 
     @Test
     public void testExecuteExecutorLambdaWithQldbSessionExceptionsExceedRetry() throws IOException {
-        thrown.expect(AmazonQLDBSessionException.class);
-
         for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
             final AmazonQLDBSessionException exception = new AmazonQLDBSessionException("msg");
             exception.setStatusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR);
@@ -422,9 +410,10 @@ public class TestQldbSession {
         }
 
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result result = txnExecutor.execute(statement);
-            }, mockRetryIndicator);
+            assertThrows(AmazonQLDBSessionException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    txnExecutor.execute(statement);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -445,12 +434,11 @@ public class TestQldbSession {
         // This should throw.
         queueTxnExecError(exception3);
 
-        thrown.expect(RateExceededException.class);
-
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result result = txnExecutor.execute(statement);
-            }, mockRetryIndicator);
+            assertThrows(RateExceededException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    txnExecutor.execute(statement);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -465,12 +453,11 @@ public class TestQldbSession {
             queueTxnExecError(exception);
         }
 
-        thrown.expect(AmazonClientException.class);
-
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result result = txnExecutor.execute(statement);
-            }, mockRetryIndicator);
+            assertThrows(AmazonClientException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    txnExecutor.execute(statement);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -487,12 +474,11 @@ public class TestQldbSession {
             client.queueResponse(MockResponses.START_SESSION_RESPONSE);
         }
 
-        thrown.expect(InvalidSessionException.class);
-
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result result = txnExecutor.execute(statement);
-            }, mockRetryIndicator);
+            assertThrows(InvalidSessionException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    txnExecutor.execute(statement);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -509,7 +495,7 @@ public class TestQldbSession {
         queueTxnExecCommit(ionList, statement, Collections.emptyList());
 
         qldbSession.execute(txnExecutor -> {
-            Result result = txnExecutor.execute(statement);
+            txnExecutor.execute(statement);
         }, mockRetryIndicator);
         verify(mockRetryIndicator, times(1)).onRetry(1);
     }
@@ -547,16 +533,15 @@ public class TestQldbSession {
     @Test
     public void testExecuteExecutorLambdaWithReturnValueOccConflict() throws IOException {
         // Add one more error response than the number of configured OCC retries.
-        thrown.expect(OccConflictException.class);
-
         for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
             queueTxnExecError("id" + i);
         }
         try {
-            qldbSession.execute(txnExecutor -> {
-                Result res = txnExecutor.execute(statement);
-                return new BufferedResult(res);
-            }, mockRetryIndicator);
+            assertThrows(OccConflictException.class,
+                () -> qldbSession.execute(txnExecutor -> {
+                    Result res = txnExecutor.execute(statement);
+                    return new BufferedResult(res);
+                }, mockRetryIndicator));
         } finally {
             verify(mockRetryIndicator, times(1)).onRetry(1);
             verify(mockRetryIndicator, times(1)).onRetry(2);
@@ -573,7 +558,7 @@ public class TestQldbSession {
             return txnExecutor.execute(statement);
         }, mockRetryIndicator);
 
-        Assert.assertTrue(result instanceof BufferedResult);
+        assertTrue(result instanceof BufferedResult);
         verify(mockRetryIndicator, times(0)).onRetry(0);
         final Iterator<IonValue> resultIterator = result.iterator();
         final Iterator<IonValue> ionListIterator = ionList.iterator();
@@ -624,22 +609,22 @@ public class TestQldbSession {
     public void testExecuteWhenClosed() {
         client.queueResponse(MockResponses.endSessionResponse());
 
-        thrown.expect(IllegalStateException.class);
-
         qldbSession.close();
-        qldbSession.execute(statement);
+
+        assertThrows(IllegalStateException.class,
+            () -> qldbSession.execute(statement));
     }
 
     @Test
     public void testExecuteExecutorLambdaWhenClosed() {
         client.queueResponse(MockResponses.endSessionResponse());
 
-       thrown.expect(IllegalStateException.class);
-
         qldbSession.close();
-        qldbSession.execute(txnExecutor -> {
-            return txnExecutor.execute(statement);
-        }, null);
+
+        assertThrows(IllegalStateException.class,
+            () -> qldbSession.execute(txnExecutor -> {
+                return txnExecutor.execute(statement);
+            }, null));
     }
 
     @Test
@@ -647,9 +632,9 @@ public class TestQldbSession {
         queueTxnExecCommit(ionList, statement, Collections.emptyList());
         final Executor<Boolean> exec = null;
 
-        thrown.expect(IllegalArgumentException.class);
+        assertThrows(IllegalArgumentException.class,
+            () -> qldbSession.execute(exec, mockRetryIndicator));
 
-        qldbSession.execute(exec, mockRetryIndicator);
         verify(mockRetryIndicator, times(0)).onRetry(0);
     }
 
@@ -659,14 +644,13 @@ public class TestQldbSession {
         client.queueResponse(MockResponses.executeResponse(ionList));
         client.queueResponse(MockResponses.ABORT_RESPONSE);
 
-        thrown.expect(AbortException.class);
-
-        qldbSession.execute(txnExecutor -> {
-            Result res = txnExecutor.execute(statement);
-            BufferedResult bufferedResult = new BufferedResult(res);
-            txnExecutor.abort();
-            return bufferedResult;
-        }, mockRetryIndicator);
+        assertThrows(AbortException.class,
+            () -> qldbSession.execute(txnExecutor -> {
+                Result res = txnExecutor.execute(statement);
+                BufferedResult bufferedResult = new BufferedResult(res);
+                txnExecutor.abort();
+                return bufferedResult;
+            }, mockRetryIndicator));
 
         verify(mockRetryIndicator, times(0)).onRetry(0);
     }
@@ -677,12 +661,11 @@ public class TestQldbSession {
         client.queueResponse(new AmazonClientException("an Error1"));
         client.queueResponse(MockResponses.ABORT_RESPONSE);
 
-        thrown.expect(AmazonClientException.class);
-
         try {
-            qldbSession.execute(txn -> { txn.execute(statement); }, null);
+            assertThrows(AmazonClientException.class,
+                () -> qldbSession.execute(txn -> { txn.execute(statement); }, null));
         } finally {
-            Assert.assertTrue(client.isQueueEmpty());
+            assertTrue(client.isQueueEmpty());
         }
     }
 
@@ -692,12 +675,11 @@ public class TestQldbSession {
         client.queueResponse(new AmazonClientException("an Error1"));
         client.queueResponse(new AmazonClientException("an Error2"));
 
-        thrown.expect(AmazonClientException.class);
-
         try {
-            qldbSession.execute(txn -> { txn.execute(statement); }, null);
+            assertThrows(AmazonClientException.class,
+                () -> qldbSession.execute(txn -> { txn.execute(statement); }, null));
         } finally {
-            Assert.assertTrue(client.isQueueEmpty());
+            assertTrue(client.isQueueEmpty());
         }
     }
 
@@ -720,35 +702,35 @@ public class TestQldbSession {
         final List<IonValue> ionTables = tables.stream().map(system::newString).collect(Collectors.toList());
 
         // Add one more error response than the number of configured OCC retries.
-        thrown.expect(OccConflictException.class);
-
         for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
             client.queueResponse(MockResponses.startTxnResponse("id" + i));
             client.queueResponse(MockResponses.executeResponse(ionTables));
             client.queueResponse(new OccConflictException("msg"));
         }
-        qldbSession.getTableNames();
+
+        assertThrows(OccConflictException.class,
+            () -> qldbSession.getTableNames());
     }
 
     @Test
     public void testGetTableNamesWhenClosed() {
         client.queueResponse(MockResponses.endSessionResponse());
 
-        thrown.expect(IllegalStateException.class);
-
         qldbSession.close();
-        qldbSession.getTableNames();
+
+        assertThrows(IllegalStateException.class,
+            () -> qldbSession.getTableNames());
     }
 
     private static <E> void compareIterators(Iterator<E> iterator1, Iterator<E> iterator2) {
         while (iterator2.hasNext() || iterator1.hasNext()) {
-            Assert.assertEquals(iterator2.hasNext(), iterator1.hasNext());
-            Assert.assertEquals(iterator1.next(), iterator2.next());
+            assertEquals(iterator2.hasNext(), iterator1.hasNext());
+            assertEquals(iterator1.next(), iterator2.next());
         }
     }
 
     private void queueTxnExecCommit(List<IonValue> values, String statement, List<IonValue> parameters) throws IOException {
-        String txnId = "id";
+        final String txnId = "id";
         QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
         txnHash = BaseTransaction.dot(txnHash, statement, parameters, system);
         client.queueResponse(MockResponses.startTxnResponse(txnId));

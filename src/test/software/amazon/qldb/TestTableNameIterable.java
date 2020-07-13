@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,7 +10,13 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.ion.IonStruct;
 import com.amazon.ion.IonSystem;
@@ -22,17 +28,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class TestTableNameIterable {
-    private static final IonSystem system = IonSystemBuilder.standard().build();
-
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
+    private static final IonSystem SYSTEM = IonSystemBuilder.standard().build();
 
     @Test
     public void testEmptyResult() {
@@ -52,13 +52,12 @@ public class TestTableNameIterable {
     @Test
     public void testIncorrectStructureNoStringResult() {
         final List<IonValue> ionTables = new ArrayList<>();
-        final IonStruct struct = system.newEmptyStruct();
-        struct.add("name", system.singleValue("table"));
+        final IonStruct struct = SYSTEM.newEmptyStruct();
+        struct.add("name", SYSTEM.singleValue("table"));
         ionTables.add(struct);
 
-        thrown.expect(IllegalStateException.class);
-
-        iterateTables(ionTables);
+        assertThrows(IllegalStateException.class,
+            () -> iterateTables(ionTables));
     }
 
     private void iterateTables(List<IonValue> ionTables) {
@@ -67,12 +66,12 @@ public class TestTableNameIterable {
 
         final TableNameIterable itr = new TableNameIterable(result);
         final Iterator<String> nameItr = itr.iterator();
-        Assert.assertTrue(nameItr.hasNext());
+        assertTrue(nameItr.hasNext());
         nameItr.next();
     }
 
     private void testRowResult(List<String> tables) {
-        final List<IonValue> ionTables = tables.stream().map(system::newString).collect(Collectors.toList());
+        final List<IonValue> ionTables = tables.stream().map(SYSTEM::newString).collect(Collectors.toList());
 
         final Result result = Mockito.mock(Result.class);
         Mockito.when(result.iterator()).thenReturn(ionTables.iterator());
@@ -80,9 +79,9 @@ public class TestTableNameIterable {
         final TableNameIterable itr = new TableNameIterable(result);
         final Iterator<String> nameItr = itr.iterator();
         for (String table : tables) {
-            Assert.assertTrue(nameItr.hasNext());
-            Assert.assertEquals(table, nameItr.next());
+            assertTrue(nameItr.hasNext());
+            assertEquals(table, nameItr.next());
         }
-        Assert.assertFalse(nameItr.hasNext());
+        assertFalse(nameItr.hasNext());
     }
 }

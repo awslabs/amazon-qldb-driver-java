@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazonaws.AmazonWebServiceRequest;
@@ -25,12 +26,12 @@ public class MockQldbSessionClient implements AmazonQLDBSession {
         public final SendCommandResult result;
         public final RuntimeException exception;
 
-        public Holder(SendCommandResult result) {
+        Holder(SendCommandResult result) {
             this.result = result;
             this.exception = null;
         }
 
-        public Holder(RuntimeException e) {
+        Holder(RuntimeException e) {
             this.result = null;
             this.exception = e;
         }
