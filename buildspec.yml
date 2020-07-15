@@ -1,0 +1,25 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: openjdk8
+    finally:
+      - echo Install complete
+  build:
+    commands:
+      - mvn install
+    finally:
+      - echo Build complete
+  post_build:
+    commands:
+      - mvn verify -Dregion=us-east-2
+    finally:
+      - echo Verification complete
+reports:
+  unit-tests:
+    files:
+      - "**/*"
+    base-directory: 'target/surefire-reports/'
+    file-format: JunitXml
+    discard-paths: no
