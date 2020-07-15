@@ -1,0 +1,21 @@
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                          https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+    <!--
+      Note how the id element in the server element in settings.xml is identical to the
+      id elements in the snapshotRepository and repository element as well as the serverId
+        configuration of the Nexus Staging Maven plugin
+    -->
+      <id>maven</id><!-- <id>sonatype-nexus-staging</id> -->
+      <username>${env.MAVEN_USER}</username>
+      <password>${env.MAVEN_PASSWORD}</password>
+    </server>
+    <server>
+      <id>gpg.passphrase</id>
+      <passphrase>${env.GPG_PASSPHRASE}</passphrase>
+    </server>
+  </servers>
+</settings>
