@@ -9,7 +9,7 @@
       id elements in the snapshotRepository and repository element as well as the serverId
         configuration of the Nexus Staging Maven plugin
     -->
-      <id>maven</id><!-- <id>sonatype-nexus-staging</id> -->
+      <id>maven</id>
       <username>${env.MAVEN_USER}</username>
       <password>${env.MAVEN_PASSWORD}</password>
     </server>

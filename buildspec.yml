@@ -1,23 +1,9 @@
 version: 0.2
 
-#env:
-  #variables:
-     # key: "value"
-     # key: "value"
-  #parameter-store:
-     # key: "value"
-     # key: "value"
-  #git-credential-helper: yes
-
 phases:
   install:
-    #If you use the Ubuntu standard image 2.0 or later, you must specify runtime-versions.
-    #If you specify runtime-versions and use an image other than Ubuntu standard image 2.0, the build fails.
     runtime-versions:
       java: openjdk8
-    #commands:
-      # - command
-      # - command
     finally:
       - echo Install complete
   build:
@@ -37,13 +23,3 @@ reports:
     base-directory: 'target/surefire-reports/'
     file-format: JunitXml
     discard-paths: no
-#artifacts:
-  #files:
-    # - location
-    # - location
-  #name: $(date +%Y-%m-%d)
-  #discard-paths: yes
-  #base-directory: location
-#cache:
-  #paths:
-    # - paths
