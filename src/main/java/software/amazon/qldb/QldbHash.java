@@ -74,7 +74,8 @@ public class QldbHash {
                 .withHasherProvider(HASHER_PROVIDER)
                 .withReader(reader)
                 .build();
-        while (hashReader.next() != null) { } // read the IonValue
+        while (hashReader.next() != null) {
+        } // read the IonValue
         return new QldbHash(hashReader.digest(), ionSystem);
     }
 

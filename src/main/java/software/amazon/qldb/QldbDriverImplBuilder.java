@@ -45,7 +45,8 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
     private RetryPolicy retryPolicy = RetryPolicy.builder().build();
     private IonSystem ionSystem = DEFAULT_ION_SYSTEM;
 
-    QldbDriverImplBuilder() {}
+    QldbDriverImplBuilder() {
+    }
 
     @Override
     public QldbDriver build() {
