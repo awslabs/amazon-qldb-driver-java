@@ -65,7 +65,7 @@
     <properties>
         <awssdk.version>1.11.649</awssdk.version>
         <build.year>${maven.build.timestamp}</build.year>
-        <checkstyle.version>8.18</checkstyle.version>
+        <checkstyle.version>8.29</checkstyle.version>
         <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
         <ion.hash.version>1.0.0</ion.hash.version>
         <ion.version>1.4.0</ion.version>
@@ -73,7 +73,7 @@
         <jdkVersion>1.8</jdkVersion>
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
         <junit.jupiter.version>5.6.2</junit.jupiter.version>
-        <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
+        <maven-checkstyle-plugin.version>3.1.1</maven-checkstyle-plugin.version>
         <maven.antrun.plugin.version>1.8</maven.antrun.plugin.version>
         <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
         <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
