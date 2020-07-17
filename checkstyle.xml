@@ -34,13 +34,19 @@
     <!-- Files must contain a copyright header. -->
     <module name="RegexpHeader">
         <property name="header"
-                  value="^/\*$\n^\W\*\WCopyright 20\d[19,2\d] Amazon\.com, Inc\. or its affiliates\. All Rights Reserved\.$\n^\W\*\n^\W\*\WLicensed under the Apache License, Version 2\.0 \(the &quot;License&quot;\)\. You may not use this file except in compliance with$\n^\W\*\Wthe License. A copy of the License is located at$\n^\W\*$\n^\W\*\Whttp:\/\/www\.apache\.org\/licenses\/LICENSE-2\.0$\n^\W\*$\n^\W\*\Wor in the &quot;license&quot; file accompanying this file\. This file is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR$\n^\W\*\WCONDITIONS OF ANY KIND, either express or implied\. See the License for the specific language governing permissions$\n^\W\*\Wand limitations under the License\.$\n^\W\*\/$"/>
+                  value="^/\*$\n^\W\*\WCopyright (20\d[19,2\d] )?Amazon\.com, Inc\. or its affiliates\. All Rights Reserved\.$\n^\W\*\n^\W\*\WLicensed under the Apache License, Version 2\.0 \(the &quot;License&quot;\)\. You may not use this file except in compliance with$\n^\W\*\Wthe License. A copy of the License is located at$\n^\W\*$\n^\W\*\Whttp:\/\/www\.apache\.org\/licenses\/LICENSE-2\.0$\n^\W\*$\n^\W\*\Wor in the &quot;license&quot; file accompanying this file\. This file is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR$\n^\W\*\WCONDITIONS OF ANY KIND, either express or implied\. See the License for the specific language governing permissions$\n^\W\*\Wand limitations under the License\.$\n^\W\*\/$"/>
     </module>
 
     <module name="SuppressionFilter">
         <property name="file"
                   value="${checkstyle.suppressions.file}"
                   default="checkstyle-suppressions.xml"/>
+    </module>
+
+    <!-- Enforce maximum line lengths. -->
+    <module name="LineLength">
+        <property name="max" value="130"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
     </module>
 
     <module name="TreeWalker">
@@ -67,12 +73,6 @@
             <property name="allowEscapesForControlCharacters" value="true"/>
             <property name="allowByTailComment" value="true"/>
             <property name="allowNonPrintableEscapes" value="true"/>
-        </module>
-
-        <!-- Enforce maximum line lengths. -->
-        <module name="LineLength">
-            <property name="max" value="130"/>
-            <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
         </module>
 
         <!-- Stars must not be used in import statements. -->
