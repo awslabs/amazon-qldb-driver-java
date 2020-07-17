@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,7 +10,12 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
@@ -18,17 +23,16 @@ import com.amazon.ion.system.IonSystemBuilder;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 public class TestBufferedResult {
-    private static final IonSystem system = IonSystemBuilder.standard().build();
+    private static final IonSystem SYSTEM = IonSystemBuilder.standard().build();
 
-    private final List<IonValue> bufferedValue = Collections.singletonList(system.singleValue("myValue"));
+    private final List<IonValue> bufferedValue = Collections.singletonList(SYSTEM.singleValue("myValue"));
 
     @Mock
     private Result mockResult;
@@ -36,7 +40,7 @@ public class TestBufferedResult {
     @Mock
     private Result emptyMockResult;
 
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
         Mockito.when(mockResult.iterator()).thenReturn(bufferedValue.iterator());
@@ -46,18 +50,18 @@ public class TestBufferedResult {
     public void testIsEmptyWhenEmpty() {
         Mockito.when(emptyMockResult.iterator()).thenReturn(Collections.emptyIterator());
         final BufferedResult bufferedResult = new BufferedResult(emptyMockResult);
-        Assert.assertTrue(bufferedResult.isEmpty());
+        assertTrue(bufferedResult.isEmpty());
     }
 
     @Test
     public void testIsEmptyWhenNotEmpty() {
         final BufferedResult bufferedResult = new BufferedResult(mockResult);
-        Assert.assertFalse(bufferedResult.isEmpty());
+        assertFalse(bufferedResult.isEmpty());
     }
 
     @Test
     public void testIteratorThatIsNotEmpty() {
-        final List<IonValue> values = Collections.singletonList(system.singleValue("myValue"));
+        final List<IonValue> values = Collections.singletonList(SYSTEM.singleValue("myValue"));
         iterateValues(values);
     }
 
@@ -74,8 +78,8 @@ public class TestBufferedResult {
         final Iterator<IonValue> bufferedResultItr = bufferedResult.iterator();
 
         while (localItr.hasNext() || bufferedResultItr.hasNext()) {
-            Assert.assertEquals(localItr.hasNext(), bufferedResultItr.hasNext());
-            Assert.assertEquals(localItr.next(), bufferedResultItr.next());
+            assertEquals(localItr.hasNext(), bufferedResultItr.hasNext());
+            assertEquals(localItr.next(), bufferedResultItr.next());
         }
     }
 }

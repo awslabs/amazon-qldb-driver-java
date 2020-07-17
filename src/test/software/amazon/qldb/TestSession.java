@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,7 +10,11 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
@@ -37,17 +41,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import software.amazon.qldb.exceptions.QldbClientException;
 
@@ -87,10 +87,7 @@ public class TestSession {
     @Mock
     private final IonValue mockIonValue = Mockito.mock(IonValue.class);
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
 
@@ -112,7 +109,7 @@ public class TestSession {
         Session.startSession(MOCK_LEDGER_NAME, mockClient);
 
         Mockito.verify(mockClient, Mockito.times(1)).sendCommand(commandCaptor.capture());
-        Assert.assertEquals(startSessionCommand, commandCaptor.getValue());
+        assertEquals(startSessionCommand, commandCaptor.getValue());
     }
 
     @Test
@@ -127,7 +124,7 @@ public class TestSession {
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getAbortTransaction();
-        Assert.assertEquals(sendAbortCommand, commandCaptor.getValue());
+        assertEquals(sendAbortCommand, commandCaptor.getValue());
     }
 
     @Test
@@ -143,7 +140,7 @@ public class TestSession {
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getCommitTransaction();
-        Assert.assertEquals(sendCommitCommand, commandCaptor.getValue());
+        assertEquals(sendCommitCommand, commandCaptor.getValue());
     }
 
     @Test
@@ -159,7 +156,7 @@ public class TestSession {
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getEndSession();
-        Assert.assertEquals(endSessionCommand, commandCaptor.getValue());
+        assertEquals(endSessionCommand, commandCaptor.getValue());
     }
 
     @Test
@@ -180,48 +177,44 @@ public class TestSession {
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getExecuteStatement();
-        Assert.assertEquals(executeCommand, commandCaptor.getValue());
+        assertEquals(executeCommand, commandCaptor.getValue());
     }
 
     @Test
     public void testSendExecuteWithParameters() throws IOException {
         Mockito.when(mockSendCommandResult.getExecuteStatement()).thenReturn(mockExecuteStatementResult);
 
-        final List<IonValue> MOCK_PARAMETERS = Collections.singletonList(mockIonValue);
+        final List<IonValue> mockParameters = Collections.singletonList(mockIonValue);
         final ArgumentCaptor<SendCommandRequest> commandCaptor = ArgumentCaptor.forClass(SendCommandRequest.class);
         final ExecuteStatementRequest executeRequest = new ExecuteStatementRequest()
                 .withStatement(MOCK_STATEMENT)
-                .withParameters(MockResponses.createByteValues(MOCK_PARAMETERS))
+                .withParameters(MockResponses.createByteValues(mockParameters))
                 .withTransactionId(MOCK_TXN_ID);
         final SendCommandRequest executeCommand = new SendCommandRequest().withExecuteStatement(executeRequest)
                 .withSessionToken(MOCK_SESSION_TOKEN);
 
         final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
-        session.sendExecute(MOCK_STATEMENT, MOCK_PARAMETERS, MOCK_TXN_ID);
+        session.sendExecute(MOCK_STATEMENT, mockParameters, MOCK_TXN_ID);
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getExecuteStatement();
-        Assert.assertEquals(executeCommand, commandCaptor.getValue());
+        assertEquals(executeCommand, commandCaptor.getValue());
     }
 
     @Test
     public void testSendExecuteRaisesException() {
         Mockito.when(mockSendCommandResult.getExecuteStatement()).thenReturn(mockExecuteStatementResult);
-        Mockito.doAnswer(new Answer<String>() {
-            @Override
-            public String answer(InvocationOnMock invocation) throws Throwable {
-                throw new IOException("msg");
-            }
+        Mockito.doAnswer((Answer<String>) invocation -> {
+            throw new IOException("msg");
         }).when(mockIonValue).writeTo(ArgumentMatchers.any(IonWriter.class));
 
-        final List<IonValue> MOCK_INVALID_PARAMETERS = Collections.singletonList(mockIonValue);
+        final List<IonValue> mockInvalidParameters = Collections.singletonList(mockIonValue);
 
         final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
 
-        thrown.expect(QldbClientException.class);
-
         try {
-            session.sendExecute(MOCK_STATEMENT, MOCK_INVALID_PARAMETERS, MOCK_TXN_ID);
+            assertThrows(QldbClientException.class,
+                () -> session.sendExecute(MOCK_STATEMENT, mockInvalidParameters, MOCK_TXN_ID));
         } finally {
             Mockito.verify(mockClient, Mockito.times(1))
                     .sendCommand(ArgumentMatchers.any(SendCommandRequest.class));
@@ -243,7 +236,7 @@ public class TestSession {
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getFetchPage();
-        Assert.assertEquals(fetchCommand, commandCaptor.getValue());
+        assertEquals(fetchCommand, commandCaptor.getValue());
     }
 
     @Test
@@ -261,35 +254,35 @@ public class TestSession {
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
         Mockito.verify(mockSendCommandResult).getStartTransaction();
-        Assert.assertEquals(startTransactionCommand, commandCaptor.getValue());
+        assertEquals(startTransactionCommand, commandCaptor.getValue());
     }
 
     @Test
     public void testGetClient() {
         final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
 
-        Assert.assertEquals(session.getClient(), mockClient);
+        assertEquals(session.getClient(), mockClient);
     }
 
     @Test
     public void testGetId() {
         final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
 
-        Assert.assertEquals(session.getId(), MOCK_REQUEST_ID);
+        assertEquals(session.getId(), MOCK_REQUEST_ID);
     }
 
     @Test
     public void testGetLedgerName() {
         final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
 
-        Assert.assertEquals(session.getLedgerName(), MOCK_LEDGER_NAME);
+        assertEquals(session.getLedgerName(), MOCK_LEDGER_NAME);
     }
 
     @Test
     public void testGetToken() {
         final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
-        
-        Assert.assertEquals(session.getToken(), MOCK_SESSION_TOKEN);
+
+        assertEquals(session.getToken(), MOCK_SESSION_TOKEN);
     }
 
     @Test
@@ -302,13 +295,13 @@ public class TestSession {
         try {
             session.sendStartTransaction();
         } catch (InvalidSessionException ise) {
-            Assert.assertEquals(ise, exception);
+            assertEquals(ise, exception);
         }
 
         try {
             session.sendStartTransaction();
         } catch (InvalidSessionException ise) {
-            Assert.assertEquals(ise, exception);
+            assertEquals(ise, exception);
         }
         Mockito.verify(mockClient, Mockito.times(3))
                 .sendCommand(ArgumentMatchers.any(SendCommandRequest.class));

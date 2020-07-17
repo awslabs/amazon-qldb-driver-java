@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -13,6 +13,11 @@
 
 package software.amazon.qldb;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
@@ -25,11 +30,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -46,7 +48,7 @@ public class TestResultRetriever {
     private static final ValueHolder MOCK_VALUE_HOLDER = new ValueHolder().withIonBinary(MOCK_ION_BINARY);
     private static final List<ValueHolder> MOCK_EMPTY_VALUES = new ArrayList<>();
     private static final List<ValueHolder> MOCK_VALUES = Collections.singletonList(MOCK_VALUE_HOLDER);
-    private static final IonSystem ionSystem = IonSystemBuilder.standard().build();
+    private static final IonSystem ION_SYSTEM = IonSystemBuilder.standard().build();
 
     private ResultRetriever resultRetriever;
 
@@ -62,10 +64,7 @@ public class TestResultRetriever {
     @Mock
     private FetchPageResult mockFetchPage;
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
         Mockito.when(mockPage.getNextPageToken()).thenReturn(MOCK_NEXT_PAGE_TOKEN);
@@ -78,7 +77,7 @@ public class TestResultRetriever {
 
     private void initRetriever() {
         resultRetriever = new ResultRetriever(mockSession, mockPage, MOCK_TXN_ID, MOCK_READ_AHEAD,
-                ionSystem, null);
+                ION_SYSTEM, null);
     }
 
     @Test
@@ -87,18 +86,16 @@ public class TestResultRetriever {
         initRetriever();
         resultRetriever.close();
 
-        thrown.expect(QldbClientException.class);
-
         // Fetch the next page while closed.
-        resultRetriever.next();
-
+        assertThrows(QldbClientException.class,
+            () -> resultRetriever.next());
     }
 
     @Test
     public void testHasNext() {
         Mockito.when(mockPage.getValues()).thenReturn(MOCK_VALUES);
         initRetriever();
-        Assert.assertTrue(resultRetriever.hasNext());
+        assertTrue(resultRetriever.hasNext());
     }
 
     @Test
@@ -106,7 +103,7 @@ public class TestResultRetriever {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         initRetriever();
 
-        Assert.assertFalse(resultRetriever.hasNext());
+        assertFalse(resultRetriever.hasNext());
         Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
     }
 
@@ -115,7 +112,7 @@ public class TestResultRetriever {
         Mockito.when(mockPage.getValues()).thenReturn(MOCK_VALUES);
         initRetriever();
 
-        Assert.assertEquals(MOCK_ION_VALUE, resultRetriever.next());
+        assertEquals(MOCK_ION_VALUE, resultRetriever.next());
         Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
     }
 
@@ -124,10 +121,9 @@ public class TestResultRetriever {
         Mockito.when(mockPage.getNextPageToken()).thenReturn(null);
         initRetriever();
 
-        thrown.expect(NoSuchElementException.class);
-
         try {
-            resultRetriever.next();
+            assertThrows(NoSuchElementException.class,
+                () -> resultRetriever.next());
         } finally {
             Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
         }
@@ -137,10 +133,9 @@ public class TestResultRetriever {
     public void testNextRaisesNoSuchElementException() {
         initRetriever();
 
-        thrown.expect(NoSuchElementException.class);
-
         try {
-            resultRetriever.next();
+            assertThrows(NoSuchElementException.class,
+                () -> resultRetriever.next());
         } finally {
             Mockito.verify(mockPage, Mockito.times(3)).getNextPageToken();
         }
@@ -152,12 +147,11 @@ public class TestResultRetriever {
         Mockito.doThrow(exception).when(mockSession).sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN);
         initRetriever();
 
-        thrown.expect(RuntimeException.class);
-
         try {
-            resultRetriever.next();
+            assertThrows(RuntimeException.class,
+                () -> resultRetriever.next());
         } catch (RuntimeException e) {
-            Assert.assertEquals(exception.getMessage(), e.getMessage());
+            assertEquals(exception.getMessage(), e.getMessage());
             throw e;
         }
     }
@@ -172,7 +166,7 @@ public class TestResultRetriever {
         final IonValue result = resultRetriever.next();
 
         Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
-        Assert.assertEquals(MOCK_ION_VALUE, result);
+        assertEquals(MOCK_ION_VALUE, result);
     }
 
     @Test
@@ -184,12 +178,11 @@ public class TestResultRetriever {
 
         Mockito.verify(mockPage, Mockito.times(2)).getNextPageToken();
 
-        thrown.expect(AmazonClientException.class);
-
         try {
-            resultRetriever.next();
+            assertThrows(AmazonClientException.class,
+                () -> resultRetriever.next());
         } catch (RuntimeException e) {
-            Assert.assertEquals(exception.getMessage(), e.getMessage());
+            assertEquals(exception.getMessage(), e.getMessage());
             throw e;
         }
     }

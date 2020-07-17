@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,16 +10,18 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.ion.IonValue;
 import com.amazonaws.services.qldbsession.model.InvalidSessionException;
 import java.util.Collections;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -29,14 +31,11 @@ public class TestPooledQldbSession {
     @Mock
     QldbSessionImpl mockSession;
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
     PooledQldbSession session;
 
     boolean wasCloseCalled;
 
-    @Before
+    @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
 
@@ -47,26 +46,23 @@ public class TestPooledQldbSession {
     @Test
     public void testClose() {
         session.close();
-        Assert.assertTrue(wasCloseCalled);
+        assertTrue(wasCloseCalled);
     }
 
     @Test
     public void testCloseWithUsing() {
-        try (PooledQldbSession session = new PooledQldbSession(mockSession, this::verifyCloseSession)) {
-        }
-        Assert.assertTrue(wasCloseCalled);
+        try (PooledQldbSession session = new PooledQldbSession(mockSession, this::verifyCloseSession)) { }
+        assertTrue(wasCloseCalled);
     }
 
     @Test
     public void testAutoCloseableWithInvalidSessionException() {
         Mockito.when(mockSession.startTransaction()).thenThrow(new InvalidSessionException(""));
 
-        thrown.expect(InvalidSessionException.class);
-
         try (PooledQldbSession session = new PooledQldbSession(mockSession, this::verifyCloseSession)) {
-            session.startTransaction();
+            assertThrows(InvalidSessionException.class, session::startTransaction);
         } finally {
-            Assert.assertTrue(wasCloseCalled);
+            assertTrue(wasCloseCalled);
         }
     }
 
@@ -77,7 +73,7 @@ public class TestPooledQldbSession {
     }
 
     @Test
-    public void TestExecuteWithStatementAndRetry() {
+    public void testExecuteWithStatementAndRetry() {
         session.execute("query", (RetryIndicator) null);
         Mockito.verify(mockSession).execute("query", (RetryIndicator) null);
     }
@@ -89,7 +85,7 @@ public class TestPooledQldbSession {
     }
 
     @Test
-    public void TestExecuteWithStatementAndListParametersAndRetry() {
+    public void testExecuteWithStatementAndListParametersAndRetry() {
         session.execute("query", null, Collections.emptyList());
         Mockito.verify(mockSession).execute("query", null, Collections.emptyList());
     }
@@ -101,20 +97,20 @@ public class TestPooledQldbSession {
     }
 
     @Test
-    public void TestExecuteWithStatementAndArgParametersAndRetry() {
+    public void testExecuteWithStatementAndArgParametersAndRetry() {
         session.execute("query", null, new IonValue[0]);
         Mockito.verify(mockSession).execute("query", null, new IonValue[0]);
     }
 
     @Test
     public void testExecuteLambdaNoRetry() {
-        session.execute(txn -> {});
+        session.execute(txn -> { });
         Mockito.verify(mockSession).execute(ArgumentMatchers.any(ExecutorNoReturn.class));
     }
 
     @Test
     public void testExecuteLambdaNoReturn() {
-        session.execute(txn -> {}, null);
+        session.execute(txn -> { }, null);
         Mockito.verify(mockSession).execute(ArgumentMatchers.any(ExecutorNoReturn.class), ArgumentMatchers.isNull());
     }
 
@@ -142,10 +138,10 @@ public class TestPooledQldbSession {
         Mockito.verify(mockSession).getSessionToken();
     }
 
-    @Test (expected = IllegalStateException.class)
+    @Test
     public void testGetSessionWhenClosed() {
         session.close();
-        session.getSessionToken();
+        assertThrows(IllegalStateException.class, session::getSessionToken);
     }
 
     @Test
@@ -162,14 +158,12 @@ public class TestPooledQldbSession {
 
     @Test
     public void testThrowIfClosed() {
-        thrown.expect(IllegalStateException.class);
-
         session.close();
-        session.startTransaction();
+        assertThrows(IllegalStateException.class, session::startTransaction);
     }
 
     void verifyCloseSession(QldbSessionImpl session) {
-        Assert.assertEquals(mockSession, session);
+        assertEquals(mockSession, session);
         wasCloseCalled = true;
     }
 }

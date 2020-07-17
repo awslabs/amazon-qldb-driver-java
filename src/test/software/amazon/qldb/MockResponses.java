@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -10,6 +10,7 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
  * and limitations under the License.
  */
+
 package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
@@ -31,13 +32,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MockResponses {
+public final class MockResponses {
+    private MockResponses() { }
+
     public static final String SESSION_TOKEN = "sessionToken";
     public static final String REQUEST_ID = "requestId";
     public static final SendCommandResult ABORT_RESPONSE = addRequestId(new SendCommandResult());
-    public static final StartSessionResult startSessionResult = new StartSessionResult().withSessionToken(SESSION_TOKEN);
+    public static final StartSessionResult START_SESSION_RESULT = new StartSessionResult().withSessionToken(SESSION_TOKEN);
     public static final SendCommandResult START_SESSION_RESPONSE =
-            addRequestId(new SendCommandResult().withStartSession(startSessionResult));
+            addRequestId(new SendCommandResult().withStartSession(START_SESSION_RESULT));
 
     public static List<ValueHolder> createByteValues(List<IonValue> ionList) throws java.io.IOException {
         final List<ValueHolder> byteParameters = new ArrayList<>(ionList.size());
@@ -59,10 +62,6 @@ public class MockResponses {
     public static SendCommandResult commitTransactionResponse(ByteBuffer commitDigest) {
         return addRequestId(new SendCommandResult().withCommitTransaction(
                 new CommitTransactionResult().withCommitDigest(commitDigest)));
-    }
-
-    public static SendCommandResult executeResponse(ExecuteStatementResult result) {
-        return addRequestId(new SendCommandResult().withExecuteStatement(result));
     }
 
     public static SendCommandResult executeResponse(List<IonValue> results) throws IOException {

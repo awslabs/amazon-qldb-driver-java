@@ -63,13 +63,33 @@
     </distributionManagement>
 
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
-        <build.year>${maven.build.timestamp}</build.year>
-        <jdkVersion>1.8</jdkVersion>
         <awssdk.version>1.11.649</awssdk.version>
-        <maven-checkstyle-plugin.version>3.1.1</maven-checkstyle-plugin.version>
-        <checkstyle.version>8.31</checkstyle.version>
+        <build.year>${maven.build.timestamp}</build.year>
+        <checkstyle.version>8.18</checkstyle.version>
+        <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
+        <ion.hash.version>1.0.0</ion.hash.version>
+        <ion.version>1.4.0</ion.version>
+        <jacoco.maven.plugin.version>0.8.5</jacoco.maven.plugin.version>
+        <jdkVersion>1.8</jdkVersion>
+        <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
+        <junit.jupiter.version>5.6.2</junit.jupiter.version>
+        <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
+        <maven.antrun.plugin.version>1.8</maven.antrun.plugin.version>
+        <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
+        <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
+        <maven.failsafe.plugin.version>2.22.0</maven.failsafe.plugin.version>
+        <maven.gpg.plugin.version>1.6</maven.gpg.plugin.version>
+        <maven.javadoc.plugin.version>2.10.3</maven.javadoc.plugin.version>
+        <maven.jxr.plugin.verision>3.0.0</maven.jxr.plugin.verision>
+        <maven.pmd.plugin.version>3.11.0</maven.pmd.plugin.version>
+        <maven.site.plugin.version>3.7.1</maven.site.plugin.version>
+        <maven.source.plugin.version>3.0.1</maven.source.plugin.version>
+        <maven.surefire.plugin.version>3.0.0-M4</maven.surefire.plugin.version>
+        <mockito.core.version>3.3.3</mockito.core.version>
+        <nexus.staging.maven.plugin.version>1.6.7</nexus.staging.maven.plugin.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <properties.maven.plugin.version>1.0.0</properties.maven.plugin.version>
+        <slf4j.api.version>1.7.26</slf4j.api.version>
     </properties>
 
     <dependencies>
@@ -84,32 +104,37 @@
             <version>${awssdk.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-qldb</artifactId>
+            <version>${awssdk.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.amazon.ion</groupId>
             <artifactId>ion-java</artifactId>
-            <version>1.4.0</version>
+            <version>${ion.version}</version>
         </dependency>
         <dependency>
             <groupId>com.amazon.ion</groupId>
             <artifactId>ion-hash-java</artifactId>
-            <version>1.0.0</version>
+            <version>${ion.hash.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.26</version>
+            <version>${slf4j.api.version}</version>
         </dependency>
 
         <!-- test dependencies -->
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>3.3.3</version>
+            <version>${mockito.core.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -133,7 +158,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.0</version>
+                <version>${maven.compiler.plugin.version}</version>
                 <configuration>
                     <source>${jdkVersion}</source>
                     <target>${jdkVersion}</target>
@@ -146,7 +171,7 @@
                 -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
-                <version>1.8</version>
+                <version>${maven.antrun.plugin.version}</version>
                 <executions>
                     <execution>
                         <phase>initialize</phase>
@@ -168,19 +193,25 @@
                 <!-- Run the unit tests. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.19.1</version>
-                <configuration>
+                <version>${maven.surefire.plugin.version}</version>
+                <!-- <configuration>
                     <excludes>
                         <exclude>**/*TestCase.java</exclude>
                     </excludes>
                     <argLine>-ea</argLine>
-                </configuration>
+                </configuration> -->
             </plugin>
             <!-- Code Coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.2</version>
+                <version>${jacoco.maven.plugin.version}</version>
+                <configuration>
+                    <destFile>${basedir}/target/coverage-reports/jacoco-unit.exec</destFile>
+                    <dataFile>${basedir}/target/coverage-reports/jacoco-unit.exec</dataFile>
+                    <output>file</output>
+                    <append>true</append>
+                </configuration>
                 <executions>
                     <execution>
                         <id>default-prepare-agent</id>
@@ -202,6 +233,16 @@
                         </goals>
                         <configuration>
                             <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>COMPLEXITY</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
                             </rules>
                         </configuration>
                     </execution>
@@ -241,12 +282,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
-                <version>3.7.1</version>
+                <version>${maven.site.plugin.version}</version>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>properties-maven-plugin</artifactId>
-                <version>1.0.0</version>
+                <version>${properties.maven.plugin.version}</version>
                 <executions>
                     <execution>
                         <phase>generate-resources</phase>
@@ -267,7 +308,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.2</version>
+                <version>${jacoco.maven.plugin.version}</version>
                 <reportSets>
                     <reportSet>
                         <reports>
@@ -282,7 +323,7 @@
                 <!-- Generate the Javadocs. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.10.3</version>
+                <version>${maven.javadoc.plugin.version}</version>
                 <configuration>
                     <source>8</source>
                 </configuration>
@@ -308,13 +349,13 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>findbugs-maven-plugin</artifactId>
-                <version>3.0.5</version>
+                <version>${findbugs.maven.plugin.version}</version>
             </plugin>
             <!-- PMD -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>${maven.pmd.plugin.version}</version>
                 <configuration>
                     <linkXref>true</linkXref>
                     <sourceEncoding>utf-8</sourceEncoding>
@@ -325,7 +366,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jxr-plugin</artifactId>
-                <version>3.0.0</version>
+                <version>${maven.jxr.plugin.verision}</version>
             </plugin>
         </plugins>
     </reporting>
@@ -339,7 +380,7 @@
                         <!-- Package the source jar. -->
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>3.0.1</version>
+                        <version>${maven.source.plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
@@ -360,7 +401,7 @@
                         <!-- Package the javadoc jar. -->
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.10.3</version>
+                        <version>${maven.javadoc.plugin.version}</version>
                         <configuration>
                             <overview>${project.basedir}/src/software/amazon/qldb/overview.html</overview>
                             <doctitle>Amazon QLDB Java Driver ${project.version} API Reference</doctitle>
@@ -384,7 +425,7 @@
                         <!-- GPG signing. -->
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
+                        <version>${maven.gpg.plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -399,7 +440,7 @@
                         <!-- Publish the artifacts. -->
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.7</version>
+                        <version>${nexus.staging.maven.plugin.version}</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>maven</serverId>
