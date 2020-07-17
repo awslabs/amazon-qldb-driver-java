@@ -75,7 +75,8 @@ public class QldbDriver extends BaseSyncQldbDriver {
         /**
          * Restricted constructor. Use {@link #builder()} to retrieve an instance of this class.
          */
-        protected QldbDriverBuilder() {}
+        protected QldbDriverBuilder() {
+        }
 
         @Override
         protected QldbDriver createDriver() {

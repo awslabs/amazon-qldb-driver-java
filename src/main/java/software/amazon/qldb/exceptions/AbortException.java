@@ -17,4 +17,5 @@ package software.amazon.qldb.exceptions;
  * Exception type representing the abort of a transaction within a lambda execution block. Signals that the lambda
  * should cease to execute and the current transaction should be aborted.
  */
-public class AbortException extends RuntimeException {}
+public class AbortException extends RuntimeException {
+}

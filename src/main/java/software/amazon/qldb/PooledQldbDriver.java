@@ -388,7 +388,8 @@ public class PooledQldbDriver extends BaseSyncQldbDriver implements RetriableExe
         /**
          * Restricted constructor. Use {@link #builder()} to retrieve an instance of this class.
          */
-        protected PooledQldbDriverBuilder() {}
+        protected PooledQldbDriverBuilder() {
+        }
 
         /**
          * <p>Specify the limit to the pool of available sessions.</p>

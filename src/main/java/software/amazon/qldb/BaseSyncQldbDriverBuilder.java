@@ -30,7 +30,8 @@ abstract class BaseSyncQldbDriverBuilder<B extends BaseSyncQldbDriverBuilder, T 
     /**
      * Restricted constructor.
      */
-    protected BaseSyncQldbDriverBuilder() {}
+    protected BaseSyncQldbDriverBuilder() {
+    }
 
     /**
      * Specify the number of read-ahead buffers, determining the amount of sets of results buffered in memory,
