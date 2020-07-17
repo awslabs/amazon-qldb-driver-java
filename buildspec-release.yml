@@ -1,0 +1,29 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    MAVEN_USER: prod/MavenCrendentials:MAVEN_USER
+    MAVEN_PASSWORD: prod/MavenCrendentials:MAVEN_PASSWORD
+    GPG_PASSPHRASE: prod/GPG_PASSPHRASE
+    GPG_PRIVATE_KEY: prod/GPG_PRIVATE_KEY
+phases:
+  install:
+    runtime-versions:
+      java: openjdk8
+    commands:
+      - echo "$GPG_PRIVATE_KEY" > private.asc
+      - gpg --import --batch private.asc
+      - cp ./settings.xml /root/.m2/settings.xml
+    finally:
+      - echo Install complete
+  build:
+    commands:
+      - mvn install
+    finally:
+      - echo Build complete
+  post_build:
+    commands:
+      - mvn verify -Dregion=us-east-2
+      - mvn -Pdeploy -Dgpg.passphrase=$GPG_PASSPHRASE clean deploy
+    finally:
+      - echo Verification complete
