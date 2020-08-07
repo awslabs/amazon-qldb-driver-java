@@ -30,7 +30,6 @@ import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
 import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
 import software.amazon.awssdk.utils.Validate;
-import software.amazon.qldb.exceptions.TransactionAbortedException;
 import software.amazon.qldb.exceptions.TransactionAlreadyOpenException;
 
 /**
@@ -95,9 +94,6 @@ class QldbSession {
                     throw (BadRequestException) taoe.getCause();
                 }
                 logger.debug("Retrying the transaction. {} ", taoe.getMessage());
-            } catch (TransactionAbortedException ae) {
-                noThrowAbort(transaction);
-                throw ae;
             } catch (InvalidSessionException ise) {
                 if (transaction != null) {
                     logger.warn("Transaction {} expired while executing. Cause {} ", transaction.getTransactionId(),
@@ -128,6 +124,9 @@ class QldbSession {
                 if (executionContext.retryAttempts() >= retryPolicy.maxRetries()) {
                     throw sce;
                 }
+            } catch (Exception e) {
+                noThrowAbort(transaction);
+                throw e;
             }
             executionContext.increaseAttempt();
 

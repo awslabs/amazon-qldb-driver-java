@@ -313,6 +313,58 @@ public class QldbDriverImplTest {
     }
 
     @Test
+    public void testExecuteStatementTransactionExpired() throws IOException {
+        int retryLimit = 3;
+        String transactionExpiryMessage = "Transaction xyz has expired";
+        QldbDriver qldbDriverImpl = QldbDriver.builder()
+                .sessionClientBuilder(mockBuilder)
+                .ledger(LEDGER)
+                .maxConcurrentTransactions(POOL_LIMIT)
+                .transactionRetryPolicy(RetryPolicy.builder().maxRetries(retryLimit).build())
+                .build();
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.startTxnResponse("id" + 0));
+        mockClient.queueResponse(MockResponses.executeResponse(ionList));
+        mockClient.queueResponse(InvalidSessionException.builder().message(transactionExpiryMessage).build());
+
+        ExecutorNoReturn executorNoReturn = (txn) -> txn.execute(statement);
+        assertThrows(InvalidSessionException.class, () ->
+                qldbDriverImpl.execute(executorNoReturn, retryPolicy));
+    }
+
+
+
+    @Test
+    public void testExecuteStatementTransactionNotExpired() throws IOException {
+        int retryLimit = 3;
+        String transactionExpiryMessage = "Session has expired";
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        String txnId = "id";
+        mockClient.queueResponse(MockResponses.startTxnResponse(txnId));
+        mockClient.queueResponse(InvalidSessionException.builder().message(transactionExpiryMessage).build());
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        List<IonValue> parameters = Collections.emptyList();
+        queueTxnExecCommit(ionList, statement, parameters);
+
+
+        QldbDriver qldbDriverImpl = QldbDriver.builder()
+                .sessionClientBuilder(mockBuilder)
+                .ledger(LEDGER)
+                .maxConcurrentTransactions(POOL_LIMIT)
+                .transactionRetryPolicy(RetryPolicy.builder().maxRetries(retryLimit).build())
+                .build();
+
+        final Boolean result = qldbDriverImpl.execute(txn -> {
+            txn.execute(statement, Collections.emptyList());
+            return true;
+        }, retryPolicy);
+        assertTrue(result);
+    }
+
+    @Test
     public void testExecuteWhenClosed() throws Exception {
         QldbDriver spyDriver = spy(qldbDriverImpl);
         spyDriver.close();
