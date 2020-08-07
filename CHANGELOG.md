@@ -1,3 +1,11 @@
+# [2.0.0-rc.2](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.2)
+
+#### Bug Fixes:
+* Fixed bug which leads to infinite number of retries when a transaction expires.
+* Fixed bug which causes transaction to remain open when an unknown exception is thrown 
+inside execute.
+
+
 # [2.0.0-rc.1](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) 
 
 We are adding new changes to the QLDB Driver for Java. However Java driver 1.x will

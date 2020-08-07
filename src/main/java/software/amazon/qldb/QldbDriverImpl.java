@@ -140,6 +140,10 @@ class QldbDriverImpl implements QldbDriver {
                 qldbSession = getSession();
                 return qldbSession.execute(executor, retryPolicy, executionContext);
             } catch (final InvalidSessionException ise) {
+                if (ise.getMessage().matches("Transaction .* has expired")) {
+                    logger.debug("Encountered Transaction expiry. Error {}", ise.getMessage());
+                    throw ise;
+                }
                 logger.debug("Retrying with another session. Error {}", ise.getMessage());
             } finally {
                 if (qldbSession != null) {

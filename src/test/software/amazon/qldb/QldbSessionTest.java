@@ -438,6 +438,10 @@ public class QldbSessionTest {
         });
         verify(client, times(4)).sendCommand(any(SendCommandRequest.class));
         verify(retryPolicy, never()).backoffStrategy();
+        final SendCommandRequest abortRequest =
+                SendCommandRequest.builder().sessionToken(SESSION_TOKEN).abortTransaction(AbortTransactionRequest.builder().build()).build();
+        verify(client, times(1)).sendCommand(
+                eq(abortRequest));
     }
 
     @Test
@@ -508,6 +512,38 @@ public class QldbSessionTest {
                 assertTrue(client.isQueueEmpty());
             }
         });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD close transaction WHEN an unknown exception is encountered")
+    public void testInternalExecuteWithUnknownError() throws IOException {
+        client = spy(new MockQldbSessionClient());
+        client.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockSession = Session.startSession(LEDGER, client);
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
+
+        final RuntimeException exception = new RuntimeException("Unknown exception occurred");
+        client.queueResponse(exception);
+        client.queueResponse(MockResponses.ABORT_RESPONSE);
+
+        // Then enqueue a set of successful operations to start, execute and commit the txn
+        String txnId = "id";
+        QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
+        txnHash = Transaction.dot(txnHash, statement, Collections.emptyList(), system);
+        client.queueResponse(MockResponses.startTxnResponse(txnId));
+        client.queueResponse(MockResponses.executeResponse(ionList));
+        client.queueResponse(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
+
+        assertThrows(RuntimeException.class, () -> {
+            qldbSession.execute(txnExecutor -> {
+                return txnExecutor.execute(statement);
+            }, retryPolicy, new ExecutionContext());
+        });
+
+        final SendCommandRequest abortRequest =
+                SendCommandRequest.builder().sessionToken(SESSION_TOKEN).abortTransaction(AbortTransactionRequest.builder().build()).build();
+        verify(client, times(1)).sendCommand(
+                eq(abortRequest));
     }
 
     @Test
