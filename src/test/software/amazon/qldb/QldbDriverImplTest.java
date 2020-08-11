@@ -20,11 +20,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -32,6 +34,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -313,6 +317,69 @@ public class QldbDriverImplTest {
     }
 
     @Test
+    public void testTransactionRetryLimit() throws IOException, NoSuchFieldException, IllegalAccessException {
+        RetryPolicy driverRetryPolicy = RetryPolicy.maxRetries(3);
+        String iseMessage = "ISE encountered";
+        int poolLimit = 1;
+        qldbDriverImpl = QldbDriver.builder()
+                .sessionClientBuilder(mockBuilder)
+                .ledger(LEDGER)
+                .maxConcurrentTransactions(poolLimit)
+                .transactionRetryPolicy(driverRetryPolicy)
+                .build();
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        for (int i = 0; i < poolLimit + 3; ++i) {
+            mockClient.queueResponse(MockResponses.startTxnResponse("id"));
+            mockClient.queueResponse(InvalidSessionException
+                    .builder()
+                    .message(iseMessage)
+                    .build());
+        }
+
+        Executor<Boolean> executor = txn -> {
+            txn.execute(statement, Collections.emptyList());
+            return true;
+        };
+
+        Session mockSession1 = Session.startSession(LEDGER, mockClient);
+        QldbSession mockQldbSession1 = spy(new QldbSession(mockSession1,0,system, null));
+
+        Session mockSession2 = Session.startSession(LEDGER, mockClient);
+        QldbSession mockQldbSession2 = spy(new QldbSession(mockSession2,0,system, null));
+
+        Session mockSession3 = Session.startSession(LEDGER, mockClient);
+        QldbSession mockQldbSession3 = spy(new QldbSession(mockSession3,0,system, null));
+
+        Session mockSession4 = Session.startSession(LEDGER, mockClient);
+        QldbSession mockQldbSession4 = spy(new QldbSession(mockSession4,0,system, null));
+
+
+        Field pool = qldbDriverImpl.getClass().getDeclaredField("pool");
+        pool.setAccessible(true);
+        BlockingQueue<QldbSession> actualPool = (LinkedBlockingQueue<QldbSession>)pool.get(qldbDriverImpl);
+        actualPool.add(mockQldbSession1);
+        actualPool.add(mockQldbSession2);
+        actualPool.add(mockQldbSession3);
+        actualPool.add(mockQldbSession4);
+
+        RetryPolicy customRetryPolicy = RetryPolicy.none();
+        assertThrows(InvalidSessionException.class,
+                () -> {
+                    final Boolean result = qldbDriverImpl.execute(executor, customRetryPolicy);
+                });
+
+        verify(mockQldbSession1, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
+        verify(mockQldbSession2, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
+        verify(mockQldbSession3, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
+        verify(mockQldbSession4, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
+        assertEquals(0, actualPool.size());
+    }
+
+    @Test
     public void testExecuteStatementTransactionExpired() throws IOException {
         int retryLimit = 3;
         String transactionExpiryMessage = "Transaction xyz has expired";
@@ -332,8 +399,6 @@ public class QldbDriverImplTest {
         assertThrows(InvalidSessionException.class, () ->
                 qldbDriverImpl.execute(executorNoReturn, retryPolicy));
     }
-
-
 
     @Test
     public void testExecuteStatementTransactionNotExpired() throws IOException {

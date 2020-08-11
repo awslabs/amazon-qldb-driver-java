@@ -1,10 +1,10 @@
 # [2.0.0-rc.2](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.2)
 
 #### Bug Fixes:
-* Fixed bug which leads to infinite number of retries when a transaction expires.
+* Fixed bug which may lead to infinite number of retries when a transaction expires.
 * Fixed bug which causes transaction to remain open when an unknown exception is thrown 
 inside execute.
-
+* Added a limit to the number of times the driver will try to get (from pool)/create a session.
 
 # [2.0.0-rc.1](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.1) 
 
