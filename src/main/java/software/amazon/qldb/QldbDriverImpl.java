@@ -57,6 +57,7 @@ class QldbDriverImpl implements QldbDriver {
     private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
+    private final int transactionRetryLimit;
 
 
     /**
@@ -94,6 +95,8 @@ class QldbDriverImpl implements QldbDriver {
         this.isClosed = new AtomicBoolean(false);
         this.readAhead = readAhead;
         this.executorService = executorService;
+        this.transactionRetryLimit = Math.max(maxConcurrentTransactions + 3, maxConcurrentTransactions);
+
         this.poolPermits = new Semaphore(maxConcurrentTransactions, true);
         this.pool = new LinkedBlockingQueue<>();
     }
@@ -134,12 +137,18 @@ class QldbDriverImpl implements QldbDriver {
         }
 
         ExecutionContext executionContext = new ExecutionContext();
+        int transactionExecutionAttempt = 0;
         while (true) {
             QldbSession qldbSession = null;
             try {
+                transactionExecutionAttempt += 1;
                 qldbSession = getSession();
                 return qldbSession.execute(executor, retryPolicy, executionContext);
             } catch (final InvalidSessionException ise) {
+                if (transactionExecutionAttempt >= this.transactionRetryLimit) {
+                    logger.debug("Transaction retry limit reached");
+                    throw ise;
+                }
                 if (ise.getMessage().matches("Transaction .* has expired")) {
                     logger.debug("Encountered Transaction expiry. Error {}", ise.getMessage());
                     throw ise;
