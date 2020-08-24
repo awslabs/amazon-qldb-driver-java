@@ -21,6 +21,20 @@ information about Amazon QLDB Driver for Java requirements, see [Amazon QLDB Dri
 1. **Using the Amazon QLDB Driver for Java** &mdash; The best way to get familiar with the Amazon QLDB Driver for Java 
 is to read [Getting Started with the Amazon QLDB Driver](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started-driver.html) in the [Amazon QLDB Developer Guide](https://docs.aws.amazon.com/qldb/latest/developerguide/what-is.html).
 
+## Getting Help
+
+Please use these community resources for getting help.
+* Ask a question on StackOverflow and tag it with the [amazon-qldb](https://stackoverflow.com/questions/tagged/amazon-qldb) tag.
+* Open a support ticket with [AWS Support](http://docs.aws.amazon.com/awssupport/latest/user/getting-started.html).
+* Make a new thread at [AWS QLDB Forum](https://forums.aws.amazon.com/forum.jspa?forumID=353&start=0).
+* If you think you may have found a bug, please open an [issue](https://github.com/awslabs/amazon-qldb-driver-java/issues/new).
+
+## Opening Issues
+
+If you encounter a bug with the Amazon QLDB Java Driver, we would like to hear about it. Please search the [existing issues](https://github.com/awslabs/amazon-qldb-driver-java/issues) and see if others are also experiencing the issue before opening a new issue. When opening a new issue, we will need the version of Amazon QLDB Java Driver, Java language version, and OS you’re using. Please also include reproduction case for the issue when appropriate.
+
+The GitHub issues are intended for bug reports and feature requests. For help and questions with using Amazon QLDB Java Driver, please make use of the resources listed in the [Getting Help](https://github.com/awslabs/amazon-qldb-driver-java#getting-help) section. Keeping the list of open issues lean will help us respond in a timely manner.
+
 ## Features
 * Provides an easy-to-use programming model for working with transactions with Amazon QLDB.
 * Provides a session pool so the sessions can be reused when future transactions are sent to the ledger database.

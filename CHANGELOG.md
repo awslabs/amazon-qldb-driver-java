@@ -1,3 +1,10 @@
+# [2.0.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0)
+This is a public and generally available(GA) release of the driver, and this version can be used in production applications.
+
+#### Announcements
+The release candidate version [2.0.0-rc.2](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.2) 
+has been selected as a final release of v2.0.0. No new changes have been introduced between 2.0.0-rc.2 and 2.0.0.
+
 # [2.0.0-rc.2](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0-rc.2)
 
 #### Bug Fixes:
