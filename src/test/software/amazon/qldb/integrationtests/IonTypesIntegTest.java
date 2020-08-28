@@ -52,11 +52,11 @@ public class IonTypesIntegTest {
 
     @BeforeAll
     private static void setup() throws InterruptedException {
-        ledgerManager = new LedgerManager(Constants.LEDGER_NAME, System.getProperty("region"));
+        ledgerManager = new LedgerManager(Constants.LEDGER_NAME+System.getProperty("ledgerSuffix"), System.getProperty("region"));
 
         ledgerManager.runCreateLedger();
 
-        driver = ledgerManager.createQldbDriver(Constants.DEFAULT, Constants.DEFAULT);
+        driver = ledgerManager.createQldbDriver(Constants.DEFAULT, Constants.RETRY_LIMIT);
 
         // Create table
         String createTableQuery = String.format("CREATE TABLE %s", Constants.TABLE_NAME);
@@ -71,7 +71,6 @@ public class IonTypesIntegTest {
                 return count;
             });
         assertEquals(1, createTableCount);
-
         Iterable<String> result = driver.getTableNames();
         for (String tableName : result) {
             assertEquals(Constants.TABLE_NAME, tableName);
