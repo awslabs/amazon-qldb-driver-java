@@ -58,7 +58,7 @@ public class IonTypesIntegTest {
 
         integrationTestBase.runCreateLedger();
 
-        pooledQldbDriver = integrationTestBase.createQldbDriver(Constants.DEFAULT, Constants.DEFAULT, Constants.DEFAULT);
+        pooledQldbDriver = integrationTestBase.createQldbDriver(Constants.DEFAULT, Constants.DEFAULT, Constants.RETRY_LIMIT);
 
         // Create table
         String createTableQuery = String.format("CREATE TABLE %s", Constants.TABLE_NAME);
