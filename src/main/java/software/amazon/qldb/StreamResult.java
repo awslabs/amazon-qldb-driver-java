@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 
@@ -50,8 +50,8 @@ class StreamResult implements Result {
     /**
      * @param session
      *              The parent session that represents the communication channel to QLDB.
-     * @param firstPage
-     *              The first chunk of the result, returned by the initial execution.
+     * @param statementResult
+     *              The result of the statement execution.
      * @param txnId
      *              The unique ID of the transaction.
      * @param readAheadBufferCount
@@ -61,19 +61,39 @@ class StreamResult implements Result {
      * @param executorService
      *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
      */
-    StreamResult(Session session, Page firstPage, String txnId, int readAheadBufferCount,
+    StreamResult(Session session, ExecuteStatementResult statementResult, String txnId, int readAheadBufferCount,
                         IonSystem ionSystem, ExecutorService executorService) {
         this.session = session;
         this.txnId = txnId;
         this.ionSystem = ionSystem;
         this.isRetrieved = new AtomicBoolean(false);
-        this.childItr = new IonIterator(session, firstPage, txnId, readAheadBufferCount, ionSystem, executorService);
+        this.childItr = new IonIterator(session, statementResult, txnId, readAheadBufferCount, ionSystem, executorService);
         this.isEmpty = !childItr.hasNext();
     }
 
     @Override
     public boolean isEmpty() {
         return isEmpty;
+    }
+
+    /**
+     * Gets the IOUsage statistics for the current statement.
+     *
+     * @return The current IOUsage statistics.
+     */
+    @Override
+    public IOUsage getConsumedIOs() {
+        return childItr.retriever.getIOUsage();
+    }
+
+    /**
+     * Gets the server side timing information for the current statement.
+     *
+     * @return The current TimingInformation statistics.
+     */
+    @Override
+    public TimingInformation getTimingInformation() {
+        return childItr.retriever.getTimingInformation();
     }
 
     @Override
@@ -105,8 +125,8 @@ class StreamResult implements Result {
          *
          * @param session
          *              The parent session that represents the communication channel to QLDB.
-         * @param firstPage
-         *              The first chunk of the result, returned by the initial execution.
+         * @param statementResult
+         *              The result of the statement execution.
          * @param txnId
          *              The unique ID of the transaction.
          * @param readAhead
@@ -116,11 +136,19 @@ class StreamResult implements Result {
          * @param executorService
          *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
          */
-        IonIterator(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
+        IonIterator(Session session, ExecuteStatementResult statementResult, String txnId, int readAhead, IonSystem ionSystem,
                     ExecutorService executorService) {
             Validate.isNotNegative(readAhead, "readAhead");
-            this.retriever = new ResultRetriever(session, firstPage, txnId, readAhead, ionSystem,
-                    executorService);
+
+            software.amazon.awssdk.services.qldbsession.model.IOUsage consumedIOs = statementResult.consumedIOs();
+            IOUsage ioUsage = (consumedIOs != null) ? new IOUsage(consumedIOs) : null;
+
+            software.amazon.awssdk.services.qldbsession.model.TimingInformation timingInformation =
+                statementResult.timingInformation();
+            TimingInformation timingInfo = (timingInformation != null) ? new TimingInformation(timingInformation) : null;
+
+            this.retriever = new ResultRetriever(session, statementResult.firstPage(), txnId, readAhead, ionSystem,
+                    executorService, ioUsage, timingInfo);
         }
 
         /**

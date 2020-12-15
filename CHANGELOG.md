@@ -1,3 +1,13 @@
+# 2.1.0
+Add support for obtaining basic server-side statistics on individual statement executions.
+
+## :tada: Enhancements
+* Added `IOUsage` and `TimingInformation` classes to provide server-side execution statistics
+   * IOUsage provides `long getReadIOs()`
+   * TimingInformation provides `long getProcessingTimeMilliseconds()`
+   * Added `IOUsage getConsumedIOs()` and `TimingInformation getTimingInformation()` to the `Result` interface implemented by `BufferedResult` and `StreamResult`
+   * `IOUsage getConsumedIOs()` and `TimingInformation getTimingInformation()` methods are stateful, meaning the statistics returned by them reflect the state at the time of method execution
+
 # [2.0.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.0.0)
 This is a public and generally available(GA) release of the driver, and this version can be used in production applications.
 

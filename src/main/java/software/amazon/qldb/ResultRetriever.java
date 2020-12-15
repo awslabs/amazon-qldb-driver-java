@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsession.model.Page;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
@@ -49,6 +50,8 @@ class ResultRetriever {
     private final IonSystem ionSystem;
     private final ExecutorService executorService;
     private final AtomicBoolean isClosed;
+    private IOUsage ioUsage;
+    private TimingInformation timingInfo;
 
     /**
      * Constructor.
@@ -63,9 +66,13 @@ class ResultRetriever {
      *              The number of buffers to asynchronously read ahead, 0 for synchronous retrieval.
      * @param executorService
      *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
+     * @param ioUsage
+     *              The initial IOUsage statistics from the statement execution.
+     * @param timingInfo
+     *              The initial server side timing information from the statement execution.
      */
     ResultRetriever(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
-                           ExecutorService executorService) {
+                           ExecutorService executorService, IOUsage ioUsage, TimingInformation timingInfo) {
         Validate.isNotNegative(readAhead, "readAhead");
 
         this.session = session;
@@ -74,15 +81,17 @@ class ResultRetriever {
         this.ionSystem = ionSystem;
         this.executorService = executorService;
         this.isClosed = new AtomicBoolean(false);
+        this.ioUsage = ioUsage;
+        this.timingInfo = timingInfo;
 
         // Start the retriever thread if there are more chunks to retrieve.
         if (currentPage.nextPageToken() == null) {
             this.retriever = null;
         } else if (0 == readAhead) {
-            this.retriever = new Retriever(session, txnId, currentPage.nextPageToken());
+            this.retriever = new Retriever(session, txnId, currentPage.nextPageToken(), ioUsage, timingInfo);
         } else {
             final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId,
-                    currentPage.nextPageToken(), readAhead, isClosed);
+                    currentPage.nextPageToken(), readAhead, isClosed, ioUsage, timingInfo);
             this.retriever = runner;
 
             if (null == executorService) {
@@ -93,6 +102,26 @@ class ResultRetriever {
                 this.executorService.submit(runner);
             }
         }
+    }
+
+    /**
+     * Gets an IOUsage object for the current accumulated query statistics for the number of IO requests.
+     * The statistics are stateful.
+     *
+     * @return The current IOUsage statistics.
+     */
+    synchronized IOUsage getIOUsage() {
+        return ioUsage;
+    }
+
+    /**
+     * Gets a TimingInformation object for the current accumulated query statistics for server-side processing time.
+     * The statistics are stateful.
+     *
+     * @return The current TimingInformation statistics.
+     */
+    synchronized TimingInformation getTimingInformation() {
+        return timingInfo;
     }
 
     /**
@@ -110,6 +139,9 @@ class ResultRetriever {
             }
             currentPage = retriever.getNextPage();
             currentResultValueIndex = 0;
+
+            ioUsage = retriever.getUpdatedIOUsage();
+            timingInfo = retriever.getUpdatedTimingInformation();
         }
         return true;
     }
@@ -145,6 +177,10 @@ class ResultRetriever {
         String nextPageToken;
         private final String txnId;
 
+        private Long accumulatedReadIOs;
+        private Long accumulatedWriteIOs;
+        private Long accumulatedProcessingTimeMilliseconds;
+
         /**
          * Constructor for creating the retriever for a specific session and result.
          *
@@ -154,11 +190,18 @@ class ResultRetriever {
          *              The unique ID of the transaction.
          * @param nextPageToken
          *              The unique token identifying the next chunk of data to fetch for this result set.
+         * @param ioUsage
+         *              The initial IOUsage from the statement execution.
+         * @param timingInfo
+         *              The initial TimingInformation from the statement execution.
          */
-        private Retriever(Session session, String txnId, String nextPageToken) {
+        private Retriever(Session session, String txnId, String nextPageToken, IOUsage ioUsage, TimingInformation timingInfo) {
             this.session = session;
             this.txnId = txnId;
             this.nextPageToken = nextPageToken;
+            this.accumulatedReadIOs = (ioUsage != null) ? ioUsage.getReadIOs() : null;
+            this.accumulatedWriteIOs = (ioUsage != null) ? ioUsage.getWriteIOs() : null;
+            this.accumulatedProcessingTimeMilliseconds = (timingInfo != null) ? timingInfo.getProcessingTimeMilliseconds() : null;
         }
 
         /**
@@ -168,9 +211,78 @@ class ResultRetriever {
          * @throws QldbDriverException if an unexpected error occurs during result retrieval.
          */
         Page getNextPage() {
-            final Page result = session.sendFetchPage(txnId, nextPageToken).page();
-            nextPageToken = result.nextPageToken();
-            return result;
+            final FetchPageResult fetchPageResult = session.sendFetchPage(txnId, nextPageToken);
+            updateMetrics(fetchPageResult);
+
+            final Page page = fetchPageResult.page();
+            nextPageToken = page.nextPageToken();
+            return page;
+        }
+
+        /**
+         * Update the metrics.
+         */
+        void updateMetrics(FetchPageResult fetchPageResult) {
+            software.amazon.awssdk.services.qldbsession.model.IOUsage ioUsage = fetchPageResult.consumedIOs();
+            if (ioUsage != null) {
+                final Long readIOs = ioUsage.readIOs();
+                if (readIOs != null) {
+                    if (accumulatedReadIOs == null) {
+                        accumulatedReadIOs = readIOs;
+                    } else {
+                        accumulatedReadIOs += readIOs;
+                    }
+                }
+
+                final Long writeIOs = ioUsage.writeIOs();
+                if (writeIOs != null) {
+                    if (accumulatedWriteIOs == null) {
+                        accumulatedWriteIOs = writeIOs;
+                    } else {
+                        accumulatedWriteIOs += writeIOs;
+                    }
+                }
+            }
+
+            software.amazon.awssdk.services.qldbsession.model.TimingInformation timingInfo = fetchPageResult.timingInformation();
+            if (timingInfo != null) {
+                final Long processingTimeMilliseconds = timingInfo.processingTimeMilliseconds();
+                if (processingTimeMilliseconds != null) {
+                    if (accumulatedProcessingTimeMilliseconds == null) {
+                        accumulatedProcessingTimeMilliseconds = processingTimeMilliseconds;
+                    } else {
+                        accumulatedProcessingTimeMilliseconds += processingTimeMilliseconds;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Creates an IOUsage object for the current accumulated query statistics for the number of IO requests.
+         * The statistics are stateful.
+         *
+         * @return The current IOUsage statistics.
+         */
+        IOUsage getUpdatedIOUsage() {
+            if (accumulatedReadIOs != null && accumulatedWriteIOs != null) {
+                return new IOUsage(accumulatedReadIOs, accumulatedWriteIOs);
+            }
+
+            return null;
+        }
+
+        /**
+         * Creates a TimingInformation object for the current accumulated query statistics for server-side processing time.
+         * The statistics are stateful.
+         *
+         * @return The current TimingInformation statistics.
+         */
+        TimingInformation getUpdatedTimingInformation() {
+            if (accumulatedProcessingTimeMilliseconds != null) {
+                return new TimingInformation(accumulatedProcessingTimeMilliseconds);
+            }
+
+            return null;
         }
     }
 
@@ -192,10 +304,14 @@ class ResultRetriever {
          *              The maximum number of chunks of data to buffer at any one time.
          * @param isClosed
          *              {@link AtomicBoolean} tracking the state of the parent {@link ResultRetriever}.
+         * @param ioUsage
+         *              The initial IOUsage from the statement execution.
+         * @param timingInfo
+         *              The initial TimingInformation from the statement execution.
          */
         ResultRetrieverRunnable(Session session, String txnId, String nextPageToken, int readAhead,
-                                AtomicBoolean isClosed) {
-            super(session, txnId, nextPageToken);
+                                AtomicBoolean isClosed, IOUsage ioUsage, TimingInformation timingInfo) {
+            super(session, txnId, nextPageToken, ioUsage, timingInfo);
             this.readAhead = Math.min(1, readAhead - 1);
             this.results = new LinkedBlockingDeque<>(readAhead);
             this.isClosed = isClosed;
