@@ -31,6 +31,8 @@ import java.util.List;
  */
 class BufferedResult implements Result {
     private final List<IonValue> bufferedValues;
+    private final IOUsage ioUsage;
+    private final TimingInformation timingInfo;
 
     /**
      * Constructor for the result which buffers into the memory the supplied result before closing it.
@@ -41,12 +43,34 @@ class BufferedResult implements Result {
     BufferedResult(Result result) {
         final List<IonValue> tempValues = new ArrayList<>();
         result.iterator().forEachRemaining(tempValues::add);
-        bufferedValues = Collections.unmodifiableList(tempValues);
+        this.bufferedValues = Collections.unmodifiableList(tempValues);
+        this.ioUsage = result.getConsumedIOs();
+        this.timingInfo = result.getTimingInformation();
     }
 
     @Override
     public boolean isEmpty() {
         return bufferedValues.isEmpty();
+    }
+
+    /**
+     * Gets the IOUsage statistics for the current statement.
+     *
+     * @return The current IOUsage statistics.
+     */
+    @Override
+    public IOUsage getConsumedIOs() {
+        return ioUsage;
+    }
+
+    /**
+     * Gets the server side timing information for the current statement.
+     *
+     * @return The current TimingInformation statistics.
+     */
+    @Override
+    public TimingInformation getTimingInformation() {
+        return timingInfo;
     }
 
     @Override

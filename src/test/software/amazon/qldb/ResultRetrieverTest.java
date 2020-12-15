@@ -66,6 +66,18 @@ public class ResultRetrieverTest {
     @Mock
     private FetchPageResult mockFetchPage;
 
+    @Mock
+    private software.amazon.awssdk.services.qldbsession.model.IOUsage mockConsumedIOs;
+
+    @Mock
+    private software.amazon.awssdk.services.qldbsession.model.TimingInformation mockSessionTimingInfo;
+
+    @Mock
+    private IOUsage mockIOUsage;
+
+    @Mock
+    private TimingInformation mockTimingInfo;
+
     @BeforeEach
     public void init() {
         MockitoAnnotations.initMocks(this);
@@ -75,11 +87,13 @@ public class ResultRetrieverTest {
         Mockito.when(mockTerminalPage.values()).thenReturn(MOCK_EMPTY_VALUES);
         Mockito.when(mockFetchPage.page()).thenReturn(mockTerminalPage);
         Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockFetchPage);
+        Mockito.when(mockFetchPage.consumedIOs()).thenReturn(mockConsumedIOs);
+        Mockito.when(mockFetchPage.timingInformation()).thenReturn(mockSessionTimingInfo);
     }
 
     private void initRetriever() {
         resultRetriever = new ResultRetriever(mockSession, mockPage, MOCK_TXN_ID, MOCK_READ_AHEAD,
-                                              ionSystem, null);
+                                              ionSystem, null, mockIOUsage, mockTimingInfo);
     }
 
     @Test
