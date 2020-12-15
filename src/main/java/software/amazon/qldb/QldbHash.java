@@ -167,7 +167,7 @@ public class QldbHash {
      */
     // CHECKSTYLE:OFF: DeclarationOrder - Implement comparator as lambda conflicts with checkstyle
     private static Comparator<byte[]> hashComparator = (h1, h2) -> {
-    //CHECKSTYLE:ON: DeclarationOrder
+        // CHECKSTYLE:ON: DeclarationOrder
         if (h1.length != 32 || h2.length != 32) {
             throw new IllegalArgumentException("Invalid hash");
         }

@@ -25,7 +25,7 @@ public class Constants {
     public static final String MULTIPLE_DOCUMENT_VALUE_1 = "MultipleDocumentValue1";
     public static final String MULTIPLE_DOCUMENT_VALUE_2 = "MultipleDocumentValue2";
 
-    public static final int RETRY_LIMIT = 4;
+    public static final int RETRY_LIMIT = 5;
     public static final Long LEDGER_POLL_PERIOD_MS = 1000L;
     public static final int DEFAULT = -1;
 

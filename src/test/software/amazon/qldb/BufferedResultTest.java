@@ -33,6 +33,9 @@ public class BufferedResultTest {
 
     private final List<IonValue> bufferedValue = Collections.singletonList(system.singleValue("myValue"));
 
+    private static final IOUsage testIO = new IOUsage(1, 2);
+    private static final TimingInformation testTiming = new TimingInformation(100);
+
     @Mock
     private Result mockResult;
 
@@ -43,6 +46,8 @@ public class BufferedResultTest {
     public void init() {
         MockitoAnnotations.initMocks(this);
         Mockito.when(mockResult.iterator()).thenReturn(bufferedValue.iterator());
+        Mockito.when(mockResult.getConsumedIOs()).thenReturn(testIO);
+        Mockito.when(mockResult.getTimingInformation()).thenReturn(testTiming);
     }
 
     @Test
@@ -56,6 +61,13 @@ public class BufferedResultTest {
     public void testIsEmptyWhenNotEmpty() {
         final BufferedResult bufferedResult = new BufferedResult(mockResult);
         assertFalse(bufferedResult.isEmpty());
+    }
+
+    @Test
+    public void testBufferResultGetsMetrics() {
+        final BufferedResult bufferedResult = new BufferedResult(mockResult);
+        assertEquals(testIO, bufferedResult.getConsumedIOs());
+        assertEquals(testTiming, bufferedResult.getTimingInformation());
     }
 
     @Test

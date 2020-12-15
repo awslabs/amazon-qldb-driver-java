@@ -28,4 +28,18 @@ public interface Result extends Iterable<IonValue> {
      * @return True if the result contains no documents; false otherwise.
      */
     boolean isEmpty();
+
+    /**
+     * Gets the IOUsage statistics for the current statement.
+     *
+     * @return The current IOUsage statistics.
+     */
+    IOUsage getConsumedIOs();
+
+    /**
+     * Gets the server side timing information for the current statement.
+     *
+     * @return The current TimingInformation statistics.
+     */
+    TimingInformation getTimingInformation();
 }

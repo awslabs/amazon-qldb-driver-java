@@ -35,8 +35,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.qldbsession.model.BadRequestException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
+import software.amazon.qldb.IOUsage;
 import software.amazon.qldb.QldbDriver;
 import software.amazon.qldb.Result;
+import software.amazon.qldb.TimingInformation;
 
 public class StatementExecutionIntegTest {
     private static LedgerManager ledgerManager;
@@ -614,5 +616,50 @@ public class StatementExecutionIntegTest {
         }
 
         fail("Test should have thrown BadRequestException");
+    }
+
+    @Test
+    public void execute_ExecutionMetrics() {
+        driver.execute(
+            txn -> {
+                String insertQuery = String.format("INSERT INTO %s << {'col': 1}, {'col': 2}, {'col': 3} >>", Constants.TABLE_NAME);
+                txn.execute(insertQuery);
+            });
+
+        // Given
+        String selectQuery = String.format("SELECT * FROM %s as a, %s as b, %s as c, %s as d, %s as e, %s as f",
+                Constants.TABLE_NAME, Constants.TABLE_NAME, Constants.TABLE_NAME, Constants.TABLE_NAME, Constants.TABLE_NAME, Constants.TABLE_NAME);
+
+        // When
+        driver.execute(
+            txn -> {
+                Result result = txn.execute(selectQuery);
+
+                for (IonValue row : result) {
+                    IOUsage ioUsage = result.getConsumedIOs();
+                    TimingInformation timingInfo = result.getTimingInformation();
+
+                    assertNotNull(ioUsage);
+                    assertNotNull(timingInfo);
+
+                    assertTrue(ioUsage.getReadIOs() > 0);
+                    assertTrue(timingInfo.getProcessingTimeMilliseconds() > 0);
+                }
+            });
+
+        // When
+        Result result = driver.execute(
+            txn -> {
+                return txn.execute(selectQuery);
+            });
+
+        IOUsage ioUsage = result.getConsumedIOs();
+        TimingInformation timingInfo = result.getTimingInformation();
+
+        assertNotNull(ioUsage);
+        assertNotNull(timingInfo);
+
+        assertEquals(1092, ioUsage.getReadIOs());
+        assertTrue(timingInfo.getProcessingTimeMilliseconds() > 0);
     }
 }

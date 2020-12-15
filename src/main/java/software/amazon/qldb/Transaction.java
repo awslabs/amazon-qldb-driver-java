@@ -152,7 +152,7 @@ class Transaction {
 
         setTransactionHash(dot(getTransactionHash(), statement, parameters, ionSystem));
         final ExecuteStatementResult executeStatementResult = session.sendExecute(statement, parameters, txnId);
-        final StreamResult result = new StreamResult(session, executeStatementResult.firstPage(), txnId,
+        final StreamResult result = new StreamResult(session, executeStatementResult, txnId,
                 readAheadBufferCount, ionSystem, executorService);
         results.add(result);
         return result;
