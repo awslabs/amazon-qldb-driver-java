@@ -15,7 +15,6 @@ package software.amazon.qldb.integrationtests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,7 +29,6 @@ import com.amazonaws.services.qldbsession.model.OccConflictException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,7 +49,7 @@ public class StatementExecutionIntegTest {
 
         integrationTestBase.runCreateLedger();
 
-        pooledQldbDriver = integrationTestBase.createQldbDriver(Constants.DEFAULT, Constants.DEFAULT, Constants.DEFAULT);
+        pooledQldbDriver = integrationTestBase.createQldbDriver(Constants.DEFAULT, Constants.DEFAULT, Constants.RETRY_LIMIT);
 
         // Create table
         String createTableQuery = String.format("CREATE TABLE %s", Constants.TABLE_NAME);
@@ -331,6 +329,76 @@ public class StatementExecutionIntegTest {
 
         // Then
         assertEquals(Constants.SINGLE_DOCUMENT_VALUE, searchValue);
+    }
+
+    @Test
+    public void execute_UpdateSameRecordAtSameTime_ThrowsOccException() {
+        // Insert document for testing OCC
+        IonStruct ionStruct = valueFactory.newEmptyStruct();
+        ionStruct.add(Constants.COLUMN_NAME, valueFactory.newInt(0));
+        String insertQuery = String.format("INSERT INTO %s ?", Constants.TABLE_NAME);
+        int insertCount = pooledQldbDriver.execute(
+                txn -> {
+                    Result result = txn.execute(insertQuery, ionStruct);
+                    int count = 0;
+                    for (IonValue row : result) {
+                        count++;
+                    }
+                    return count;
+                });
+        assertEquals(1, insertCount);
+
+        String selectQuery = String.format("SELECT VALUE %s FROM %s", Constants.COLUMN_NAME, Constants.TABLE_NAME);
+        String updateQuery = String.format("UPDATE %s SET %s = ?", Constants.TABLE_NAME, Constants.COLUMN_NAME);
+
+        try {
+            // For testing purposes only. Forcefully causes an OCC conflict to occur.
+            // Do not invoke pooledQldbDriver.execute within the lambda function under normal circumstances.
+            pooledQldbDriver.execute(
+                    txn -> {
+                        // Query table
+                        Result result = txn.execute(selectQuery);
+                        int intValue = 0;
+                        for (IonValue ionVal : result) {
+                            intValue = ((IonInt) ionVal).intValue();
+                        }
+
+                        IonInt ionInt = valueFactory.newInt(intValue + 5);
+                        pooledQldbDriver.execute(
+                                txn2 -> {
+                                    // Update document
+                                    txn2.execute(updateQuery, ionInt);
+                                }
+                        );
+                    });
+        } catch (Exception e) {
+            assertTrue(e instanceof OccConflictException);
+
+        }
+
+        // Update document to make sure everything still works after the OCC exception.
+        AtomicInteger updatedValue = new AtomicInteger();
+        pooledQldbDriver.execute(
+                txn -> {
+                    Result result = txn.execute(selectQuery);
+                    int intValue = 0;
+                    for (IonValue ionVal : result) {
+                        intValue = ((IonInt) ionVal).intValue();
+                    }
+                    updatedValue.set(intValue + 5);
+                    IonInt ionInt = valueFactory.newInt(updatedValue.get());
+                    txn.execute(updateQuery, ionInt);
+                });
+        int intVal = pooledQldbDriver.execute(
+                txn -> {
+                    Result result = txn.execute(selectQuery);
+                    int intValue = 0;
+                    for (IonValue ionVal : result) {
+                        intValue = ((IonInt) ionVal).intValue();
+                    }
+                    return intValue;
+                });
+        assertEquals(updatedValue.get(), intVal);
     }
 
     @Test
