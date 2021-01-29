@@ -18,7 +18,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>software.amazon.qldb</groupId>
     <artifactId>amazon-qldb-driver-java</artifactId>
-    <version>2.1.0</version>
+    <version>2.1.1</version>
     <packaging>jar</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -28,9 +28,9 @@
     <url>https://aws.amazon.com/qldb/</url>
 
     <scm>
-        <connection>scm:git:https://github.com/aws/amazon-qldb-driver-java.git</connection>
-        <developerConnection>scm:git:git@github.com:aws/amazon-qldb-driver-java.git</developerConnection>
-        <url>https://github.com/aws/amazon-qldb-driver-java</url>
+        <connection>scm:git:https://github.com/awslabs/amazon-qldb-driver-java.git</connection>
+        <developerConnection>scm:git:git@github.com:awslabs/amazon-qldb-driver-java.git</developerConnection>
+        <url>https://github.com/awslabs/amazon-qldb-driver-java</url>
     </scm>
 
     <licenses>
@@ -68,7 +68,7 @@
         <checkstyle.version>8.29</checkstyle.version>
         <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
         <ion.hash.version>1.0.0</ion.hash.version>
-        <ion.version>1.4.0</ion.version>
+        <ion.version>1.8.0</ion.version>
         <jacoco.maven.plugin.version>0.8.5</jacoco.maven.plugin.version>
         <jdkVersion>1.8</jdkVersion>
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
