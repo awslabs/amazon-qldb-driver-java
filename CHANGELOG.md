@@ -1,7 +1,7 @@
 # 2.1.1
 * Fix broken Github links in POM.xml
 * Update Ion dependency version to 1.8.0
-
+* Update AWS SDK dependency version to 2.15.79
 
 # [2.1.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.1.0)
 Add support for obtaining basic server-side statistics on individual statement executions.
