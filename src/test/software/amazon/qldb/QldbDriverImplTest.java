@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -12,21 +12,16 @@
  */
 package software.amazon.qldb;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.apache.http.HttpStatus;
+import org.apache.http.NoHttpResponseException;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.DisplayName;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.any;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -34,8 +29,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,24 +37,28 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import static org.mockito.Mockito.*;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
+import software.amazon.awssdk.services.qldbsession.model.BadRequestException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
+import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
+import software.amazon.awssdk.services.qldbsession.model.RateExceededException;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
 public class QldbDriverImplTest {
     private static final String LEDGER = "ledger";
     private static final int POOL_LIMIT = 2;
-    private static final int TIMEOUT = 30000;
     private IonSystem system;
     private List<IonValue> ionList;
     private QldbDriver qldbDriverImpl;
     private String statement;
+    private QldbDriverImpl retryDriver;
 
     private final MockQldbSessionClient mockClient = new MockQldbSessionClient();
 
@@ -90,6 +87,8 @@ public class QldbDriverImplTest {
                                    .maxConcurrentTransactions(POOL_LIMIT)
                                    .transactionRetryPolicy(retryPolicy)
                                    .build();
+
+        retryDriver = new QldbDriverImpl(LEDGER, mockClient, retryPolicy, 0, 50, IonSystemBuilder.standard().build(), null);
     }
 
     @Test
@@ -317,69 +316,6 @@ public class QldbDriverImplTest {
     }
 
     @Test
-    public void testTransactionRetryLimit() throws IOException, NoSuchFieldException, IllegalAccessException {
-        RetryPolicy driverRetryPolicy = RetryPolicy.maxRetries(3);
-        String iseMessage = "ISE encountered";
-        int poolLimit = 1;
-        qldbDriverImpl = QldbDriver.builder()
-                .sessionClientBuilder(mockBuilder)
-                .ledger(LEDGER)
-                .maxConcurrentTransactions(poolLimit)
-                .transactionRetryPolicy(driverRetryPolicy)
-                .build();
-
-        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        for (int i = 0; i < poolLimit + 3; ++i) {
-            mockClient.queueResponse(MockResponses.startTxnResponse("id"));
-            mockClient.queueResponse(InvalidSessionException
-                    .builder()
-                    .message(iseMessage)
-                    .build());
-        }
-
-        Executor<Boolean> executor = txn -> {
-            txn.execute(statement, Collections.emptyList());
-            return true;
-        };
-
-        Session mockSession1 = Session.startSession(LEDGER, mockClient);
-        QldbSession mockQldbSession1 = spy(new QldbSession(mockSession1,0,system, null));
-
-        Session mockSession2 = Session.startSession(LEDGER, mockClient);
-        QldbSession mockQldbSession2 = spy(new QldbSession(mockSession2,0,system, null));
-
-        Session mockSession3 = Session.startSession(LEDGER, mockClient);
-        QldbSession mockQldbSession3 = spy(new QldbSession(mockSession3,0,system, null));
-
-        Session mockSession4 = Session.startSession(LEDGER, mockClient);
-        QldbSession mockQldbSession4 = spy(new QldbSession(mockSession4,0,system, null));
-
-
-        Field pool = qldbDriverImpl.getClass().getDeclaredField("pool");
-        pool.setAccessible(true);
-        BlockingQueue<QldbSession> actualPool = (LinkedBlockingQueue<QldbSession>)pool.get(qldbDriverImpl);
-        actualPool.add(mockQldbSession1);
-        actualPool.add(mockQldbSession2);
-        actualPool.add(mockQldbSession3);
-        actualPool.add(mockQldbSession4);
-
-        RetryPolicy customRetryPolicy = RetryPolicy.none();
-        assertThrows(InvalidSessionException.class,
-                () -> {
-                    final Boolean result = qldbDriverImpl.execute(executor, customRetryPolicy);
-                });
-
-        verify(mockQldbSession1, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
-        verify(mockQldbSession2, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
-        verify(mockQldbSession3, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
-        verify(mockQldbSession4, times(1)).execute(any(Executor.class), any(RetryPolicy.class), any(ExecutionContext.class));
-        assertEquals(0, actualPool.size());
-    }
-
-    @Test
     public void testExecuteStatementTransactionExpired() throws IOException {
         int retryLimit = 3;
         String transactionExpiryMessage = "Transaction xyz has expired";
@@ -475,6 +411,258 @@ public class QldbDriverImplTest {
             qldbDriverImpl.getTableNames());
     }
 
+    @Test
+    @DisplayName("execute - SHOULD delay zero ms WHEN backoff strategy is null")
+    public void testNullSleepTime() throws IOException {
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.startTxnResponse("id"));
+        mockClient.queueResponse(SdkClientException.builder().message("an Error1").cause(new SocketTimeoutException()).build());
+        mockClient.queueResponse(MockResponses.ABORT_RESPONSE);
+
+        queueTxnExecCommit(ionList, statement, Collections.emptyList());
+        RetryPolicy nullRetryPolicy = new RetryPolicy(retryPolicyContext -> null, 1);
+
+        assertDoesNotThrow(() -> {
+            try {
+                retryDriver.execute(txn -> {
+                    txn.execute(statement);
+                }, nullRetryPolicy);
+            } finally {
+                assertTrue(mockClient.isQueueEmpty());
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD bubble up exception WHEN starting a transaction and retry attemtps exceeded")
+    public void testExecuteWithTransactionAlreadyOpenExceptionAndRetryLimitExceeded() {
+        RetryPolicy retryPolicy = spy(RetryPolicy.none());
+
+        // BadRequestException on start transaction if the transaction somehow is already open
+        final BadRequestException exception = BadRequestException.builder().message("Transaction already open").build();
+        mockClient.queueResponse(exception);
+        mockClient.queueResponse(MockResponses.ABORT_RESPONSE);
+
+        assertThrows(BadRequestException.class, () -> {
+            retryDriver.execute(txnExecutor -> {
+                return txnExecutor.execute(statement);
+            });
+        });
+
+        verify(retryPolicy, never()).backoffStrategy();
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry WHEN QLDB executes a transaction but fails with 500 or 503 response status code "
+            + "but bubble up 404 responses ")
+    public void testExecuteExecutorLambdaWithQldbSessionExceptions() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        final AwsServiceException exception1 = QldbSessionException.builder()
+                .message("1")
+                .statusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                .build();
+        // This exception should retry.
+        queueTxnExecError(exception1);
+        final AwsServiceException exception2 = QldbSessionException.builder()
+                .message("2")
+                .statusCode(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                .build();
+
+        // This exception should retry.
+        queueTxnExecError(exception2);
+        final AwsServiceException exception3 = QldbSessionException.builder()
+                .message("3")
+                .statusCode(HttpStatus.SC_NOT_FOUND)
+                .build();
+        // This exception should throw.
+        queueTxnExecError(exception3);
+
+        assertThrows(QldbSessionException.class, () -> {
+            try {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            } finally {
+                verify(retryPolicy, times(2)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry up to retry limit WHEN QLDB throws OCC Errors")
+    public void testExecuteExecutorLambdaWithReturnValueOccConflict() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+
+        // Add one more error response than the number of configured OCC retries.
+        int retryLimit = 3;
+
+        for (int i = 0; i < retryLimit + 1; ++i) {
+            queueTxnExecOccError("id" + i);
+        }
+        try {
+            assertThrows(QldbSessionException.class, () -> {
+                retryDriver.execute(txnExecutor -> {
+                    Result res = txnExecutor.execute(statement);
+                    return new BufferedResult(res);
+                }, retryPolicy);
+            });
+        } finally {
+            verify(retryPolicy, times(3)).backoffStrategy();
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
+        }
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry generic server side failures WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithSdkServiceExceptions() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+
+        // This exception should be retried.
+        final SdkClientException exception1 = SdkClientException
+                .builder()
+                .message("Error 1")
+                .cause(new NoHttpResponseException("cause"))
+                .build();
+        queueTxnExecError(exception1);
+
+        // This exception should be retried.
+        final SdkClientException exception2 = SdkClientException
+                .builder()
+                .message("Error 2")
+                .cause(new SocketTimeoutException("cause"))
+                .build();
+        queueTxnExecError(exception2);
+
+        // This exceptions should be thrown.
+        final RateExceededException exception3 = RateExceededException.builder().message("3").build();
+        queueTxnExecError(exception3);
+
+        assertThrows(RateExceededException.class, () -> {
+            try {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            } finally {
+                verify(retryPolicy, times(2)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry generic client failures up to a limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithSdkClientExceptionExceedRetry() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+
+        int retryLimit = 3;
+        for (int i = 0; i < retryLimit + 1; ++i) {
+            final SdkClientException exception = SdkClientException
+                    .builder()
+                    .message("Error")
+                    .cause(new NoHttpResponseException("cause"))
+                    .build();
+            queueTxnExecError(exception);
+        }
+
+        assertThrows(SdkClientException.class, () -> {
+            try {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            } finally {
+                verify(retryPolicy, times(3)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry server side failures up to retry limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithQldbSessionExceptionsExceedRetry() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+
+        int retryLimit = 3;
+        for (int i = 0; i < retryLimit + 1; ++i) {
+            final AwsServiceException exception = QldbSessionException
+                    .builder()
+                    .message("Error")
+                    .statusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                    .build();
+            queueTxnExecError(exception);
+        }
+
+        try {
+            assertThrows(QldbSessionException.class, () -> {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            });
+        } finally {
+            verify(retryPolicy, times(3)).backoffStrategy();
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
+        }
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD throw NullPointerException WHEN executor lambda is null")
+    public void testInternalExecuteWithNullExecutor() throws IOException {
+        queueTxnExecCommit(ionList, statement, Collections.emptyList());
+        final Executor<Boolean> exec = null;
+
+        assertThrows(NullPointerException.class, () -> {
+            retryDriver.execute(exec);
+        });
+        verify(retryPolicy, never()).backoffStrategy();
+    }
+
     private void queueTxnExecCommit(List<IonValue> values, String statement, List<IonValue> parameters) throws IOException {
         String txnId = "id";
         QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
@@ -482,6 +670,19 @@ public class QldbDriverImplTest {
         mockClient.queueResponse(MockResponses.startTxnResponse(txnId));
         mockClient.queueResponse(MockResponses.executeResponse(values));
         mockClient.queueResponse(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
+    }
+
+    public void queueTxnExecError(SdkException ace) throws IOException {
+        mockClient.queueResponse(MockResponses.startTxnResponse("id"));
+        mockClient.queueResponse(MockResponses.executeResponse(ionList));
+        mockClient.queueResponse(ace);
+        mockClient.queueResponse(MockResponses.ABORT_RESPONSE);
+    }
+
+    private void queueTxnExecOccError(String id) throws IOException {
+        mockClient.queueResponse(MockResponses.startTxnResponse(id));
+        mockClient.queueResponse(MockResponses.executeResponse(ionList));
+        mockClient.queueResponse(OccConflictException.builder().message("An OCC Exception").build());
     }
 
     private static <E> void compareIterators(Iterator<E> iterator1, Iterator<E> iterator2) {

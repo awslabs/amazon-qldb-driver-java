@@ -24,7 +24,7 @@ import software.amazon.qldb.QldbDriver;
  * any of the {@link QldbDriver}'s execute methods.
  * </p>
  *
- * <p><b>Note</b>: this enum is for internal use only.</p>
+ * <p><b>Note</b>: this class is for internal use only.</p>
  */
 public class TransactionAlreadyOpenException extends QldbDriverException {
     public TransactionAlreadyOpenException(QldbSessionException cause) {

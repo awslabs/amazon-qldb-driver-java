@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -85,13 +85,7 @@ public class TransactionTest {
     public void testAbortInvalidSession() {
         Mockito.when(mockSession.sendAbort()).thenThrow(InvalidSessionException.builder().message("").build());
 
-        assertThrows(InvalidSessionException.class, () -> {
-            try {
-                txn.abort();
-            } finally {
-                assertTrue(txn.getIsClosed().get());
-            }
-        });
+        assertThrows(InvalidSessionException.class, () -> txn.abort());
     }
 
     @Test
@@ -119,45 +113,18 @@ public class TransactionTest {
     }
 
     @Test
-    public void testClose() {
-        txn.close();
-        assertTrue(txn.getIsClosed().get());
-    }
-
-    @Test
-    public void testAbortAfterCommit() {
-        testCommit();
-
-        // This should be a no-op.
-        txn.abort();
-        verify(mockSession, Mockito.never()).sendAbort();
-    }
-
-    @Test
     public void testCommitInvalidSession() {
         Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
                .thenThrow(InvalidSessionException.builder().message("").build());
 
-        assertThrows(InvalidSessionException.class, () -> {
-            try {
-                txn.commit();
-            } finally {
-                assertTrue(txn.getIsClosed().get());
-            }
-        });
+        assertThrows(InvalidSessionException.class, () -> txn.commit());
     }
 
     @Test
     public void testCommitExceptionAbortSuccessful() {
         Mockito.when(mockSession.sendCommit(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
                .thenThrow(SdkServiceException.builder().message("").build());
-        assertThrows(SdkServiceException.class, () -> {
-            try {
-                txn.commit();
-            } finally {
-                assertTrue(txn.getIsClosed().get());
-            }
-        });
+        assertThrows(SdkServiceException.class, () -> txn.commit());
     }
 
     @Test
@@ -174,8 +141,6 @@ public class TransactionTest {
             } catch (SdkClientException se) {
                 assertEquals(se, se1);
                 throw se;
-            } finally {
-                assertTrue(txn.getIsClosed().get());
             }
         });
     }
