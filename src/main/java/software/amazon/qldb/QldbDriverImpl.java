@@ -28,8 +28,8 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
-import software.amazon.qldb.exceptions.QldbDriverException;
 import software.amazon.qldb.exceptions.ExecuteException;
+import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
  * Implementation of the QldbDriver.
@@ -150,34 +150,34 @@ class QldbDriverImpl implements QldbDriver {
                 T returnedValue = session.execute(executor);
                 this.releaseSession(session);
                 return returnedValue;
-            } catch (ExecuteException te) {
+            } catch (ExecuteException ee) {
                 // If initial session is invalid, always retry once with a new session.
-                if (te.isRetriable && te.isISE && retryAttempt == 0) {
+                if (ee.isRetriable && ee.isISE && retryAttempt == 0) {
                     logger.debug("Initial session received from pool invalid. Retrying...");
                     replaceDeadSession = true;
                     retryAttempt++;
                     continue;
                 }
                 // Do not retry.
-                if (!te.isRetriable || retryAttempt >= retryPolicy.maxRetries()) {
-                    if (te.isAborted && session != null) {
+                if (!ee.isRetriable || retryAttempt >= retryPolicy.maxRetries()) {
+                    if (ee.isAborted && session != null) {
                         this.releaseSession(session);
                     } else {
                         this.poolPermits.release();
                     }
-                    throw te.cause;
+                    throw ee.cause;
                 }
                 // Retry.
                 retryAttempt++;
                 logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
-                logger.debug("Errored Transaction ID: {}. Error cause: ", te.txnId, te.cause);
-                if (te.isISE) {
+                logger.debug("Errored Transaction ID: {}. Error cause: ", ee.txnId, ee.cause);
+                if (ee.isISE) {
                     logger.debug("Replacing expired session...");
                     replaceDeadSession = true;
                 } else {
                     logger.debug("Retrying with a different session...");
                     replaceDeadSession = false;
-                    if (te.isAborted) {
+                    if (ee.isAborted) {
                         this.releaseSession(session);
                     } else {
                         this.poolPermits.release();
@@ -185,7 +185,7 @@ class QldbDriverImpl implements QldbDriver {
                 }
 
                 try {
-                    RetryPolicyContext context = new RetryPolicyContext(te.cause, retryAttempt, te.txnId);
+                    RetryPolicyContext context = new RetryPolicyContext(ee.cause, retryAttempt, ee.txnId);
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
                     this.poolPermits.release();

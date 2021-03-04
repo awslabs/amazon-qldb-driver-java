@@ -25,8 +25,8 @@ import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
 import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
-import software.amazon.qldb.exceptions.QldbDriverException;
 import software.amazon.qldb.exceptions.ExecuteException;
+import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
  * Object responsible for executing and maintaining the lifecycle of the transaction
