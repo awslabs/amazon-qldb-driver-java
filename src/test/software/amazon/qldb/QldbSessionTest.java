@@ -50,6 +50,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.qldbsession.model.AbortTransactionRequest;
 import software.amazon.awssdk.services.qldbsession.model.BadRequestException;
+import software.amazon.awssdk.services.qldbsession.model.CapacityExceededException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
@@ -261,6 +262,34 @@ public class QldbSessionTest {
                 verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
                 verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
                 verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry CapacityExceededException failures up to a limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithCapacityExceededExceptionExceedRetry() throws IOException {
+        for (int i = 0; i < RETRY_LIMIT + 1; ++i) {
+            final CapacityExceededException exception = CapacityExceededException
+                    .builder()
+                    .statusCode(503)
+                    .message("Capacity Exceeded Exception")
+                    .build();
+            queueTxnExecError(exception);
+        }
+
+        assertThrows(CapacityExceededException.class, () -> {
+            try {
+                qldbSession.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy, new ExecutionContext());
+            } finally {
+                verify(retryPolicy, times(3)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == RETRY_LIMIT + 1));
             }
         });
     }
