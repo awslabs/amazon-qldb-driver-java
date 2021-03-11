@@ -1,17 +1,17 @@
 # 2.2.0
 
-## :hammer_and_wrench: Improvements
+### :hammer_and_wrench: Improvements
 * Update AWS SDK dependency version to 2.15.79 which supports [CapacityExceededException](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html). This will better inform users that they are overloading their ledger.
 * Update Ion dependency version to 1.8.0.
-* Improved the retry logic to handle more cases and increased likelihood of retry succeeding.
+* Improved the retry logic to handle more cases and increase the likelihood of retry succeeding.
 
-## :bug: Fixed
-* Fix broken Github links in POM.xml.
+### :bug: Fixed
+* Fix broken GitHub links in POM.xml.
 
 # [2.1.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.1.0)
 Add support for obtaining basic server-side statistics on individual statement executions.
 
-## :tada: Added
+### :tada: Added
 * Added `IOUsage` and `TimingInformation` classes to provide server-side execution statistics
    * IOUsage provides `long getReadIOs()`
    * TimingInformation provides `long getProcessingTimeMilliseconds()`
