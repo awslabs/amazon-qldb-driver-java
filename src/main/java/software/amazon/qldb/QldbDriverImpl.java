@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -14,6 +14,7 @@
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
+import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -23,10 +24,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.ThreadSafe;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
-import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.ExecuteException;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
@@ -57,7 +59,6 @@ class QldbDriverImpl implements QldbDriver {
     private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
-    private final int transactionRetryLimit;
 
 
     /**
@@ -95,7 +96,6 @@ class QldbDriverImpl implements QldbDriver {
         this.isClosed = new AtomicBoolean(false);
         this.readAhead = readAhead;
         this.executorService = executorService;
-        this.transactionRetryLimit = Math.max(maxConcurrentTransactions + 3, maxConcurrentTransactions);
 
         this.poolPermits = new Semaphore(maxConcurrentTransactions, true);
         this.pool = new LinkedBlockingQueue<>();
@@ -130,33 +130,66 @@ class QldbDriverImpl implements QldbDriver {
 
     @Override
     public <T> T execute(Executor<T> executor, RetryPolicy retryPolicy) {
+        Validate.paramNotNull(executor, "executor");
         Validate.notNull(retryPolicy, "retryPolicy");
         if (isClosed.get()) {
             logger.error(Errors.DRIVER_CLOSED.get());
             throw QldbDriverException.create(Errors.DRIVER_CLOSED.get());
         }
 
-        ExecutionContext executionContext = new ExecutionContext();
-        int transactionExecutionAttempt = 0;
+        boolean replaceDeadSession = false;
+        int retryAttempt = 0;
         while (true) {
-            QldbSession qldbSession = null;
+            QldbSession session = null;
             try {
-                transactionExecutionAttempt += 1;
-                qldbSession = getSession();
-                return qldbSession.execute(executor, retryPolicy, executionContext);
-            } catch (final InvalidSessionException ise) {
-                if (transactionExecutionAttempt >= this.transactionRetryLimit) {
-                    logger.debug("Transaction retry limit reached");
-                    throw ise;
+                if (replaceDeadSession) {
+                    session = this.createNewSession();
+                } else {
+                    session = this.getSession();
                 }
-                if (ise.getMessage().matches("Transaction .* has expired")) {
-                    logger.debug("Encountered Transaction expiry. Error {}", ise.getMessage());
-                    throw ise;
+                T returnedValue = session.execute(executor);
+                this.releaseSession(session);
+                return returnedValue;
+            } catch (ExecuteException ee) {
+                // If initial session is invalid, always retry once with a new session.
+                if (ee.isRetriable && ee.isISE && retryAttempt == 0) {
+                    logger.debug("Initial session received from pool invalid. Retrying...");
+                    replaceDeadSession = true;
+                    retryAttempt++;
+                    continue;
                 }
-                logger.debug("Retrying with another session. Error {}", ise.getMessage());
-            } finally {
-                if (qldbSession != null) {
-                    releaseSession(qldbSession);
+                // Do not retry.
+                if (!ee.isRetriable || retryAttempt >= retryPolicy.maxRetries()) {
+                    if (ee.isAborted && session != null) {
+                        this.releaseSession(session);
+                    } else {
+                        this.poolPermits.release();
+                    }
+                    throw ee.cause;
+                }
+                // Retry.
+                retryAttempt++;
+                logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
+                logger.debug("Errored Transaction ID: {}. Error cause: ", ee.txnId, ee.cause);
+                if (ee.isISE) {
+                    logger.debug("Replacing expired session...");
+                    replaceDeadSession = true;
+                } else {
+                    logger.debug("Retrying with a different session...");
+                    replaceDeadSession = false;
+                    if (ee.isAborted) {
+                        this.releaseSession(session);
+                    } else {
+                        this.poolPermits.release();
+                    }
+                }
+
+                try {
+                    RetryPolicyContext context = new RetryPolicyContext(ee.cause, retryAttempt, ee.txnId);
+                    retrySleep(context, retryPolicy);
+                } catch (Exception e) {
+                    this.poolPermits.release();
+                    throw e;
                 }
             }
         }
@@ -176,18 +209,12 @@ class QldbDriverImpl implements QldbDriver {
 
         try {
             if (poolPermits.tryAcquire(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                try {
-                    QldbSession session = pool.poll();
-                    if (session == null) {
-                        session = createNewSession();
-                        logger.debug("Creating new pooled session. Session ID: {}.", session.getSessionId());
-                    }
-                    return session;
-                } catch (final Exception e) {
-                    // If creating a new session fails then don't use a permit!
-                    poolPermits.release();
-                    throw e;
+                QldbSession session = pool.poll();
+                if (session == null) {
+                    session = createNewSession();
+                    logger.debug("Creating new pooled session. Session ID: {}.", session.getSessionId());
                 }
+                return session;
             } else {
                 throw QldbDriverException.create(String.format(Errors.NO_SESSION_AVAILABLE.get(), DEFAULT_TIMEOUT_MS));
             }
@@ -198,20 +225,32 @@ class QldbDriverImpl implements QldbDriver {
     }
 
     private QldbSession createNewSession() {
-        final Session session = Session.startSession(ledgerName, amazonQldbSession);
-        return new QldbSession(session, readAhead, ionSystem, executorService);
+        try {
+            final Session session = Session.startSession(ledgerName, amazonQldbSession);
+            return new QldbSession(session, readAhead, ionSystem, executorService);
+        } catch (SdkException ase) {
+            throw new ExecuteException(ase, true, false, true, "None");
+        }
     }
 
     private void releaseSession(QldbSession session) {
-        // If a session is closed, do not submit it back to the pool,
-        // but release the permit. This ensures that the pool does not get flooded with
-        // closed sessions
-        if (!session.isClosed()) {
-            pool.add(session);
-        }
-
+        pool.add(session);
         poolPermits.release();
         logger.debug("Session returned to pool; pool size is now: {}.", pool.size());
     }
 
+    private void retrySleep(RetryPolicyContext context, RetryPolicy retryPolicy) {
+        try {
+            Duration backoffDelay =
+                    retryPolicy.backoffStrategy().calculateDelay(context);
+            if (backoffDelay == null || backoffDelay.isNegative()) {
+                backoffDelay = Duration.ofMillis(0);
+            }
+
+            TimeUnit.MILLISECONDS.sleep(backoffDelay.toMillis());
+        } catch (InterruptedException e) {
+            // Reset the interruption flag.
+            Thread.currentThread().interrupt();
+        }
+    }
 }

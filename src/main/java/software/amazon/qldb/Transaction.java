@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
  * the License. A copy of the License is located at
@@ -22,13 +22,10 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
@@ -59,7 +56,6 @@ class Transaction {
     private static final Logger logger = LoggerFactory.getLogger(Transaction.class);
     private final Session session;
     private final String txnId;
-    private final AtomicBoolean isClosed = new AtomicBoolean(true);
     private final IonSystem ionSystem;
     private QldbHash txnHash;
 
@@ -68,7 +64,7 @@ class Transaction {
 
     // We are allowing for an unbounded list here as the number of results in a transaction will practically be limited
     // by the operations performed on QLDB.
-    private final Deque<Result> results;
+    private final Deque<StreamResult> results;
 
     Transaction(Session session, String txnId, int readAheadBufferCount, IonSystem ionSystem,
                 ExecutorService executorService) {
@@ -79,7 +75,6 @@ class Transaction {
         this.txnId = txnId;
         this.txnHash = QldbHash.toQldbHash(this.txnId, ionSystem);
         this.ionSystem = ionSystem;
-        this.isClosed.set(false);
         this.readAheadBufferCount = readAheadBufferCount;
         this.executorService = executorService;
         this.results = new ArrayDeque<>();
@@ -91,21 +86,8 @@ class Transaction {
      * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void abort() {
-        if (!isClosed.get()) {
-            internalClose();
-            session.sendAbort();
-        }
-    }
-
-    /**
-     * Clean up any resources, and abort the transaction if it has not already been committed or aborted.
-     */
-    void close() {
-        try {
-            abort();
-        } catch (SdkException se) {
-            logger.warn("Ignored error aborting transaction when closing.", se);
-        }
+        internalClose();
+        session.sendAbort();
     }
 
     /**
@@ -121,24 +103,11 @@ class Transaction {
      * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void commit() {
-        try {
-            final ByteBuffer hashByteBuffer = ByteBuffer.wrap(getTransactionHash().getQldbHash());
-            final ByteBuffer commitDigest = session.sendCommit(txnId, hashByteBuffer).commitDigest().asByteBuffer();
-            if (!commitDigest.equals(hashByteBuffer)) {
-                logger.error(Errors.TXN_DIGEST_MISMATCH.get());
-                throw new IllegalStateException(Errors.TXN_DIGEST_MISMATCH.get());
-            }
-        } catch (OccConflictException oce) {
-            // Avoid sending courtesy abort since we know transaction is dead on OCC conflict.
-            throw oce;
-        } catch (InvalidSessionException ise) {
-            // Avoid sending abort since we know session is dead.
-            throw ise;
-        } catch (SdkException se) {
-            close();
-            throw se;
-        } finally {
-            internalClose();
+        final ByteBuffer hashByteBuffer = ByteBuffer.wrap(getTransactionHash().getQldbHash());
+        final ByteBuffer commitDigest = session.sendCommit(txnId, hashByteBuffer).commitDigest().asByteBuffer();
+        if (!commitDigest.equals(hashByteBuffer)) {
+            logger.error(Errors.TXN_DIGEST_MISMATCH.get());
+            throw new IllegalStateException(Errors.TXN_DIGEST_MISMATCH.get());
         }
     }
 
@@ -165,13 +134,12 @@ class Transaction {
     }
 
     /**
-     * Mark the transaction as closed, and stop retrieval threads for any child {@link StreamResult} objects.
+     * Stop retrieval threads for any child {@link StreamResult} objects.
      */
     void internalClose() {
-        isClosed.set(true);
         while (!results.isEmpty()) {
             // Avoid the use of forEach to guard against potential concurrent modification issues.
-            ((StreamResult) results.pop()).close();
+            (results.pop()).close();
         }
     }
 
@@ -219,11 +187,7 @@ class Transaction {
      * @param hash
      *              The new commit digest hash to replace the old one.
      */
-    void setTransactionHash(QldbHash hash) {
+    private void setTransactionHash(QldbHash hash) {
         txnHash = hash;
-    }
-
-    public AtomicBoolean getIsClosed() {
-        return isClosed;
     }
 }
