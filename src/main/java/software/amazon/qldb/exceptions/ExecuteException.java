@@ -21,17 +21,33 @@ import software.amazon.awssdk.core.exception.SdkException;
  * <p><b>Note</b>: this class is for internal use only.</p>
  */
 public class ExecuteException extends RuntimeException {
-    public SdkException cause;
-    public boolean isRetriable;
-    public boolean isAborted;
-    public boolean isISE;
-    public String txnId;
+    public final SdkException cause;
+    public final boolean retryable;
+    public final boolean aborted;
+    public final boolean ise;
+    public final String txnId;
 
-    public ExecuteException(SdkException cause, boolean isRetriable, boolean isAborted, boolean isISE, String txnId) {
+    public ExecuteException(SdkException cause, boolean isRetryable, boolean isAborted, boolean isISE, String txnId) {
         this.cause = cause;
-        this.isRetriable = isRetriable;
-        this.isAborted = isAborted;
-        this.isISE = isISE;
+        this.retryable = isRetryable;
+        this.aborted = isAborted;
+        this.ise = isISE;
         this.txnId = txnId;
+    }
+
+    public boolean isRetryable() {
+        return retryable;
+    }
+
+    public boolean isAborted() {
+        return aborted;
+    }
+
+    public String getTxnId() {
+        return txnId;
+    }
+
+    public boolean isISE() {
+        return ise;
     }
 }

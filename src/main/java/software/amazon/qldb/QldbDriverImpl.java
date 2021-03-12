@@ -139,6 +139,7 @@ class QldbDriverImpl implements QldbDriver {
 
         boolean replaceDeadSession = false;
         int retryAttempt = 0;
+
         while (true) {
             QldbSession session = null;
             try {
@@ -152,15 +153,15 @@ class QldbDriverImpl implements QldbDriver {
                 return returnedValue;
             } catch (ExecuteException ee) {
                 // If initial session is invalid, always retry once with a new session.
-                if (ee.isRetriable && ee.isISE && retryAttempt == 0) {
+                if (ee.isRetryable() && ee.isISE() && retryAttempt == 0) {
                     logger.debug("Initial session received from pool invalid. Retrying...");
                     replaceDeadSession = true;
                     retryAttempt++;
                     continue;
                 }
                 // Do not retry.
-                if (!ee.isRetriable || retryAttempt >= retryPolicy.maxRetries()) {
-                    if (ee.isAborted && session != null) {
+                if (!ee.isRetryable() || retryAttempt >= retryPolicy.maxRetries()) {
+                    if (ee.isAborted() && session != null) {
                         this.releaseSession(session);
                     } else {
                         this.poolPermits.release();
@@ -171,13 +172,13 @@ class QldbDriverImpl implements QldbDriver {
                 retryAttempt++;
                 logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
                 logger.debug("Errored Transaction ID: {}. Error cause: ", ee.txnId, ee.cause);
-                if (ee.isISE) {
+                if (ee.isISE()) {
                     logger.debug("Replacing expired session...");
                     replaceDeadSession = true;
                 } else {
                     logger.debug("Retrying with a different session...");
                     replaceDeadSession = false;
-                    if (ee.isAborted) {
+                    if (ee.isAborted()) {
                         this.releaseSession(session);
                     } else {
                         this.poolPermits.release();

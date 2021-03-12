@@ -125,8 +125,8 @@ public class QldbSessionTest {
             try {
                 qldbSession.execute(txn -> null);
             } catch (ExecuteException te) {
-                assertTrue(te.isISE);
-                assertTrue(te.isRetriable);
+                assertTrue(te.isISE());
+                assertTrue(te.isRetryable());
                 throw te.cause;
             }
         });
@@ -155,8 +155,8 @@ public class QldbSessionTest {
                     return result;
                 });
             } catch (ExecuteException te) {
-                assertTrue(te.isISE);
-                assertTrue(te.isRetriable);
+                assertTrue(te.isISE());
+                assertTrue(te.isRetryable());
                 throw te.cause;
             } finally {
                 verify(retryPolicy, never()).backoffStrategy();
@@ -290,7 +290,7 @@ public class QldbSessionTest {
         try {
             qldbSession.execute(txn -> txn.execute(statement));
         } catch (ExecuteException e) {
-            assertFalse(e.isAborted);
+            assertFalse(e.isAborted());
         } finally {
             assertTrue(client.isQueueEmpty());
         }
