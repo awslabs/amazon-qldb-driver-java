@@ -89,11 +89,11 @@ class QldbSession {
                     txnId
             );
         } catch (QldbSessionException qse) {
-            boolean retriable = (qse.statusCode() == HttpStatus.SC_INTERNAL_SERVER_ERROR)
+            boolean retryable = (qse.statusCode() == HttpStatus.SC_INTERNAL_SERVER_ERROR)
                     || (qse.statusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE);
             throw new ExecuteException(
                     qse,
-                    retriable,
+                    retryable,
                     this.tryAbort(txn),
                     false,
                     txnId
