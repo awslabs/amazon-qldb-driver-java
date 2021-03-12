@@ -139,7 +139,6 @@ class QldbDriverImpl implements QldbDriver {
 
         boolean replaceDeadSession = false;
         int retryAttempt = 0;
-
         while (true) {
             QldbSession session = null;
             try {
