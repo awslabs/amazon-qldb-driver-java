@@ -247,7 +247,11 @@ class QldbDriverImpl implements QldbDriver {
                 backoffDelay = Duration.ofMillis(0);
             }
 
-            TimeUnit.MILLISECONDS.sleep(backoffDelay.toMillis());
+            synchronized (this) {
+                if (backoffDelay.toMillis() != 0) {
+                    wait(backoffDelay.toMillis());
+                }
+            }
         } catch (InterruptedException e) {
             // Reset the interruption flag.
             Thread.currentThread().interrupt();
