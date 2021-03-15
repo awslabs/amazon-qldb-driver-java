@@ -22,10 +22,10 @@ import software.amazon.awssdk.core.exception.SdkException;
  */
 public class ExecuteException extends RuntimeException {
     public final SdkException cause;
-    public final boolean retryable;
-    public final boolean aborted;
-    public final boolean ise;
-    public final String txnId;
+    private final boolean retryable;
+    private final boolean aborted;
+    private final boolean ise;
+    private final String txnId;
 
     public ExecuteException(SdkException cause, boolean isRetryable, boolean isAborted, boolean isISE, String txnId) {
         this.cause = cause;
@@ -33,6 +33,10 @@ public class ExecuteException extends RuntimeException {
         this.aborted = isAborted;
         this.ise = isISE;
         this.txnId = txnId;
+    }
+
+    public SdkException getCause() {
+        return cause;
     }
 
     public boolean isRetryable() {
