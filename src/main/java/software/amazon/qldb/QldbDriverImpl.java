@@ -165,12 +165,12 @@ class QldbDriverImpl implements QldbDriver {
                     } else {
                         this.poolPermits.release();
                     }
-                    throw ee.cause;
+                    throw ee.getCause();
                 }
                 // Retry.
                 retryAttempt++;
                 logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
-                logger.debug("Errored Transaction ID: {}. Error cause: ", ee.getTxnId(), ee.cause);
+                logger.debug("Errored Transaction ID: {}. Error cause: ", ee.getTxnId(), ee.getCause());
                 if (ee.isISE()) {
                     logger.debug("Replacing expired session...");
                     replaceDeadSession = true;
@@ -185,7 +185,7 @@ class QldbDriverImpl implements QldbDriver {
                 }
 
                 try {
-                    RetryPolicyContext context = new RetryPolicyContext(ee.cause, retryAttempt, ee.getTxnId());
+                    RetryPolicyContext context = new RetryPolicyContext(ee.getCause(), retryAttempt, ee.getTxnId());
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
                     if (ee.isISE()) {

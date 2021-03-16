@@ -21,7 +21,7 @@ import software.amazon.awssdk.core.exception.SdkException;
  * <p><b>Note</b>: this class is for internal use only.</p>
  */
 public class ExecuteException extends RuntimeException {
-    public final SdkException cause;
+    private final SdkException cause;
     private final boolean retryable;
     private final boolean aborted;
     private final boolean ise;
