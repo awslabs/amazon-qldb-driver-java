@@ -127,7 +127,7 @@ public class QldbSessionTest {
             } catch (ExecuteException te) {
                 assertTrue(te.isISE());
                 assertTrue(te.isRetryable());
-                throw te.cause;
+                throw te.getCause();
             }
         });
     }
@@ -157,7 +157,7 @@ public class QldbSessionTest {
             } catch (ExecuteException te) {
                 assertTrue(te.isISE());
                 assertTrue(te.isRetryable());
-                throw te.cause;
+                throw te.getCause();
             } finally {
                 verify(retryPolicy, never()).backoffStrategy();
             }
@@ -218,7 +218,7 @@ public class QldbSessionTest {
                     return bufferedResult;
                 });
             } catch (ExecuteException te) {
-                throw te.cause;
+                throw te.getCause();
             }
         });
         verify(client, times(4)).sendCommand(any(SendCommandRequest.class));
