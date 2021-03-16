@@ -49,6 +49,7 @@ import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
 import software.amazon.awssdk.services.qldbsession.model.RateExceededException;
+import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
 public class QldbDriverImplTest {
@@ -663,6 +664,55 @@ public class QldbDriverImplTest {
             retryDriver.execute(exec);
         });
         verify(retryPolicy, never()).backoffStrategy();
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD only release session once WHEN execute throws retryable exception with unsuccessful abort and retry policy throws exception")
+    public void testReleaseSessionIsOnlyCalledOnce() throws IOException {
+        RuntimeException runtimeException = new RuntimeException();
+
+        //Set up mockRetryPolicy to throw exception.
+        final RetryPolicy mockRetryPolicy = Mockito.mock(RetryPolicy.class);
+        Mockito.doThrow(runtimeException).when(mockRetryPolicy).backoffStrategy();
+        Mockito.when(mockRetryPolicy.maxRetries()).thenReturn(1);
+
+        //Set up driver to have semaphore of size 1.
+        qldbDriverImpl = QldbDriver.builder()
+                .sessionClientBuilder(mockBuilder)
+                .ledger(LEDGER)
+                .ionSystem(system)
+                .maxConcurrentTransactions(1)
+                .transactionRetryPolicy(mockRetryPolicy)
+                .build();
+
+        final CapacityExceededException cce = CapacityExceededException
+                .builder()
+                .statusCode(503)
+                .message("Capacity Exceeded Exception")
+                .build();
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.startTxnResponse("id"));
+        mockClient.queueResponse(MockResponses.executeResponse(ionList));
+        mockClient.queueResponse(cce);
+        // Queue exception for abort request.
+        mockClient.queueResponse(runtimeException);
+
+        assertThrows(RuntimeException.class, () -> qldbDriverImpl.execute(txnExecutor -> {
+            txnExecutor.execute(statement);
+        }));
+
+        mockClient.queueResponse(MockResponses.START_SESSION_RESPONSE);
+        mockClient.queueResponse(MockResponses.startTxnResponse("id"));
+
+        // Use nested driver.execute() and attempt to get two permits from pool.
+        QldbDriverException exception = assertThrows(QldbDriverException.class, () -> qldbDriverImpl.execute(txnExecutor -> {
+            qldbDriverImpl.execute(txnExecutor2 -> {
+                        txnExecutor2.execute(statement);
+                    });
+            txnExecutor.execute(statement);
+        }));
+
+        assertEquals(exception.getMessage(), (Errors.NO_SESSION_AVAILABLE.get()));
     }
 
     private void queueTxnExecCommit(List<IonValue> values, String statement, List<IonValue> parameters) throws IOException {

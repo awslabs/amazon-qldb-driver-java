@@ -188,7 +188,9 @@ class QldbDriverImpl implements QldbDriver {
                     RetryPolicyContext context = new RetryPolicyContext(ee.cause, retryAttempt, ee.getTxnId());
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
-                    this.poolPermits.release();
+                    if (ee.isISE()) {
+                        this.poolPermits.release();
+                    }
                     throw e;
                 }
             }
