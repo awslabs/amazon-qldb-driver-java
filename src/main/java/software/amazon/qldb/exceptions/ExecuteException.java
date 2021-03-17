@@ -24,15 +24,19 @@ public class ExecuteException extends RuntimeException {
     private final SdkException cause;
     private final boolean retryable;
     private final boolean aborted;
-    private final boolean ise;
-    private final String txnId;
+    private final boolean invalidSessionException;
+    private final String transactionId;
 
-    public ExecuteException(SdkException cause, boolean isRetryable, boolean isAborted, boolean isISE, String txnId) {
+    public ExecuteException(SdkException cause,
+                            boolean isRetryable,
+                            boolean isAborted,
+                            boolean isInvalidSessionException,
+                            String transactionId) {
         this.cause = cause;
         this.retryable = isRetryable;
         this.aborted = isAborted;
-        this.ise = isISE;
-        this.txnId = txnId;
+        this.invalidSessionException = isInvalidSessionException;
+        this.transactionId = transactionId;
     }
 
     public SdkException getCause() {
@@ -47,11 +51,11 @@ public class ExecuteException extends RuntimeException {
         return aborted;
     }
 
-    public String getTxnId() {
-        return txnId;
+    public String getTransactionId() {
+        return transactionId;
     }
 
-    public boolean isISE() {
-        return ise;
+    public boolean isInvalidSessionException() {
+        return invalidSessionException;
     }
 }

@@ -152,7 +152,7 @@ class QldbDriverImpl implements QldbDriver {
                 return returnedValue;
             } catch (ExecuteException ee) {
                 // If initial session is invalid, always retry once with a new session.
-                if (ee.isRetryable() && ee.isISE() && retryAttempt == 0) {
+                if (ee.isRetryable() && ee.isInvalidSessionException() && retryAttempt == 0) {
                     logger.debug("Initial session received from pool invalid. Retrying...");
                     replaceDeadSession = true;
                     retryAttempt++;
@@ -170,8 +170,8 @@ class QldbDriverImpl implements QldbDriver {
                 // Retry.
                 retryAttempt++;
                 logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
-                logger.debug("Errored Transaction ID: {}. Error cause: ", ee.getTxnId(), ee.getCause());
-                if (ee.isISE()) {
+                logger.debug("Errored Transaction ID: {}. Error cause: ", ee.getTransactionId(), ee.getCause());
+                if (ee.isInvalidSessionException()) {
                     logger.debug("Replacing expired session...");
                     replaceDeadSession = true;
                 } else {
@@ -185,10 +185,10 @@ class QldbDriverImpl implements QldbDriver {
                 }
 
                 try {
-                    RetryPolicyContext context = new RetryPolicyContext(ee.getCause(), retryAttempt, ee.getTxnId());
+                    RetryPolicyContext context = new RetryPolicyContext(ee.getCause(), retryAttempt, ee.getTransactionId());
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
-                    if (ee.isISE()) {
+                    if (ee.isInvalidSessionException()) {
                         this.poolPermits.release();
                     }
                     throw e;
@@ -249,11 +249,7 @@ class QldbDriverImpl implements QldbDriver {
                 backoffDelay = Duration.ofMillis(0);
             }
 
-            synchronized (this) {
-                if (backoffDelay.toMillis() != 0) {
-                    wait(backoffDelay.toMillis());
-                }
-            }
+            TimeUnit.MILLISECONDS.sleep(backoffDelay.toMillis());
         } catch (InterruptedException e) {
             // Reset the interruption flag.
             Thread.currentThread().interrupt();
