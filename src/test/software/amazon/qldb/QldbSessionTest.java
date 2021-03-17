@@ -125,7 +125,7 @@ public class QldbSessionTest {
             try {
                 qldbSession.execute(txn -> null);
             } catch (ExecuteException te) {
-                assertTrue(te.isISE());
+                assertTrue(te.isInvalidSessionException());
                 assertTrue(te.isRetryable());
                 throw te.getCause();
             }
@@ -155,7 +155,7 @@ public class QldbSessionTest {
                     return result;
                 });
             } catch (ExecuteException te) {
-                assertTrue(te.isISE());
+                assertTrue(te.isInvalidSessionException());
                 assertTrue(te.isRetryable());
                 throw te.getCause();
             } finally {
