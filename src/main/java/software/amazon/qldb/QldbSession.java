@@ -20,13 +20,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
 import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
 import software.amazon.qldb.exceptions.ExecuteException;
-import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
  * Object responsible for executing and maintaining the lifecycle of the transaction
@@ -70,13 +68,15 @@ class QldbSession {
             txn.commit();
             return returnedValue;
         } catch (InvalidSessionException ise) {
-            if (txn != null) {
-                txn.internalClose();
+            boolean isAborted = false;
+            boolean transactionExpired = ise.getMessage().matches("Transaction.*has expired.*");
+            if (transactionExpired) {
+                isAborted = this.tryAbort(txn);
             }
             throw new ExecuteException(
                     ise,
-                    !ise.getMessage().matches("Transaction.*has expired.*"),
-                    false,
+                    !transactionExpired,
+                    isAborted,
                     true,
                     txnId
             );
@@ -107,17 +107,9 @@ class QldbSession {
                     false,
                     txnId
             );
-        } catch (SdkException se) {
+        } catch (RuntimeException re) {
             throw new ExecuteException(
-                    se,
-                    false,
-                    this.tryAbort(txn),
-                    false,
-                    txnId
-            );
-        } catch (RuntimeException se) {
-            throw new ExecuteException(
-                    QldbDriverException.create(se),
+                    re,
                     false,
                     this.tryAbort(txn),
                     false,

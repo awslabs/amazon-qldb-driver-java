@@ -160,7 +160,7 @@ class QldbDriverImpl implements QldbDriver {
                 }
                 // Do not retry.
                 if (!ee.isRetryable() || retryAttempt >= retryPolicy.maxRetries()) {
-                    if (ee.isAborted() && session != null) {
+                    if (ee.isAbortSuccessful() && session != null) {
                         this.releaseSession(session);
                     } else {
                         this.poolPermits.release();
@@ -171,24 +171,22 @@ class QldbDriverImpl implements QldbDriver {
                 retryAttempt++;
                 logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
                 logger.debug("Errored Transaction ID: {}. Error cause: ", ee.getTransactionId(), ee.getCause());
-                if (ee.isInvalidSessionException()) {
-                    logger.debug("Replacing expired session...");
-                    replaceDeadSession = true;
+                replaceDeadSession = !ee.isAbortSuccessful();
+                if (replaceDeadSession) {
+                    logger.debug("Replacing invalid session...");
                 } else {
                     logger.debug("Retrying with a different session...");
-                    replaceDeadSession = false;
-                    if (ee.isAborted()) {
-                        this.releaseSession(session);
-                    } else {
-                        this.poolPermits.release();
-                    }
+                    this.releaseSession(session);
                 }
 
                 try {
-                    RetryPolicyContext context = new RetryPolicyContext(ee.getCause(), retryAttempt, ee.getTransactionId());
+                    // This can be safely casted since only SdkExceptions or child Exceptions are deemed retryable.
+                    SdkException se = (SdkException)ee.getCause();
+                    RetryPolicyContext context = new RetryPolicyContext(se, retryAttempt, ee.getTransactionId());
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
-                    if (ee.isInvalidSessionException()) {
+                    if (replaceDeadSession) {
+                        // Ensure release in case that a replacement session did not get a chance to be made.
                         this.poolPermits.release();
                     }
                     throw e;
