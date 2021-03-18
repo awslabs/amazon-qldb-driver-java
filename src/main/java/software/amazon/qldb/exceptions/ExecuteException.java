@@ -38,7 +38,7 @@ public class ExecuteException extends RuntimeException {
 
     @Override
     public RuntimeException getCause() {
-        return (RuntimeException)super.getCause();
+        return (RuntimeException) super.getCause();
     }
 
     public boolean isRetryable() {
