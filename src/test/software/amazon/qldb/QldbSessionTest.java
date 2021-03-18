@@ -290,7 +290,7 @@ public class QldbSessionTest {
         try {
             qldbSession.execute(txn -> txn.execute(statement));
         } catch (ExecuteException e) {
-            assertFalse(e.isAborted());
+            assertFalse(e.isAbortSuccessful());
         } finally {
             assertTrue(client.isQueueEmpty());
         }

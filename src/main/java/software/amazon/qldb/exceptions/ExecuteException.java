@@ -13,41 +13,39 @@
 
 package software.amazon.qldb.exceptions;
 
-import software.amazon.awssdk.core.exception.SdkException;
-
 /**
  * Exception that contains the context of an error that occurred during a Execute lifecycle.
  *
  * <p><b>Note</b>: this class is for internal use only.</p>
  */
 public class ExecuteException extends RuntimeException {
-    private final SdkException cause;
     private final boolean retryable;
     private final boolean aborted;
     private final boolean invalidSessionException;
     private final String transactionId;
 
-    public ExecuteException(SdkException cause,
+    public ExecuteException(RuntimeException cause,
                             boolean isRetryable,
                             boolean isAborted,
                             boolean isInvalidSessionException,
                             String transactionId) {
-        this.cause = cause;
+        super(cause);
         this.retryable = isRetryable;
         this.aborted = isAborted;
         this.invalidSessionException = isInvalidSessionException;
         this.transactionId = transactionId;
     }
 
-    public SdkException getCause() {
-        return cause;
+    @Override
+    public RuntimeException getCause() {
+        return (RuntimeException)super.getCause();
     }
 
     public boolean isRetryable() {
         return retryable;
     }
 
-    public boolean isAborted() {
+    public boolean isAbortSuccessful() {
         return aborted;
     }
 
