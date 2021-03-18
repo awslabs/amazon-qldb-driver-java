@@ -19,20 +19,20 @@ package software.amazon.qldb.exceptions;
  * <p><b>Note</b>: this class is for internal use only.</p>
  */
 public class ExecuteException extends RuntimeException {
-    private final boolean retryable;
-    private final boolean aborted;
-    private final boolean invalidSessionException;
+    private final boolean isRetryable;
+    private final boolean isSessionAlive;
+    private final boolean isInvalidSessionException;
     private final String transactionId;
 
     public ExecuteException(RuntimeException cause,
                             boolean isRetryable,
-                            boolean isAborted,
+                            boolean isSessionAlive,
                             boolean isInvalidSessionException,
                             String transactionId) {
         super(cause);
-        this.retryable = isRetryable;
-        this.aborted = isAborted;
-        this.invalidSessionException = isInvalidSessionException;
+        this.isRetryable = isRetryable;
+        this.isSessionAlive = isSessionAlive;
+        this.isInvalidSessionException = isInvalidSessionException;
         this.transactionId = transactionId;
     }
 
@@ -42,11 +42,11 @@ public class ExecuteException extends RuntimeException {
     }
 
     public boolean isRetryable() {
-        return retryable;
+        return isRetryable;
     }
 
-    public boolean isAbortSuccessful() {
-        return aborted;
+    public boolean isSessionAlive() {
+        return isSessionAlive;
     }
 
     public String getTransactionId() {
@@ -54,6 +54,6 @@ public class ExecuteException extends RuntimeException {
     }
 
     public boolean isInvalidSessionException() {
-        return invalidSessionException;
+        return isInvalidSessionException;
     }
 }

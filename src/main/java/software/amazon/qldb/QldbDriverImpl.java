@@ -151,16 +151,16 @@ class QldbDriverImpl implements QldbDriver {
                 this.releaseSession(session);
                 return returnedValue;
             } catch (ExecuteException ee) {
+                retryAttempt++;
                 // If initial session is invalid, always retry once with a new session.
-                if (ee.isRetryable() && ee.isInvalidSessionException() && retryAttempt == 0) {
+                if (ee.isRetryable() && ee.isInvalidSessionException() && retryAttempt == 1) {
                     logger.debug("Initial session received from pool invalid. Retrying...");
                     replaceDeadSession = true;
-                    retryAttempt++;
                     continue;
                 }
                 // Do not retry.
-                if (!ee.isRetryable() || retryAttempt >= retryPolicy.maxRetries()) {
-                    if (ee.isAbortSuccessful() && session != null) {
+                if (!ee.isRetryable() || retryAttempt > retryPolicy.maxRetries()) {
+                    if (ee.isSessionAlive() && session != null) {
                         this.releaseSession(session);
                     } else {
                         this.poolPermits.release();
@@ -168,10 +168,9 @@ class QldbDriverImpl implements QldbDriver {
                     throw ee.getCause();
                 }
                 // Retry.
-                retryAttempt++;
                 logger.info("A recoverable error has occurred. Attempting retry #{}.", retryAttempt);
                 logger.debug("Errored Transaction ID: {}. Error cause: ", ee.getTransactionId(), ee.getCause());
-                replaceDeadSession = !ee.isAbortSuccessful();
+                replaceDeadSession = !ee.isSessionAlive();
                 if (replaceDeadSession) {
                     logger.debug("Replacing invalid session...");
                 } else {
@@ -181,8 +180,8 @@ class QldbDriverImpl implements QldbDriver {
 
                 try {
                     // This can be safely casted since only SdkExceptions or child Exceptions are deemed retryable.
-                    SdkException se = (SdkException) ee.getCause();
-                    RetryPolicyContext context = new RetryPolicyContext(se, retryAttempt, ee.getTransactionId());
+                    final SdkException se = (SdkException) ee.getCause();
+                    final RetryPolicyContext context = new RetryPolicyContext(se, retryAttempt, ee.getTransactionId());
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
                     if (replaceDeadSession) {
