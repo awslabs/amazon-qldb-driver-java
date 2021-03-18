@@ -181,12 +181,12 @@ class QldbDriverImpl implements QldbDriver {
 
                 try {
                     // This can be safely casted since only SdkExceptions or child Exceptions are deemed retryable.
-                    SdkException se = (SdkException)ee.getCause();
+                    SdkException se = (SdkException) ee.getCause();
                     RetryPolicyContext context = new RetryPolicyContext(se, retryAttempt, ee.getTransactionId());
                     retrySleep(context, retryPolicy);
                 } catch (Exception e) {
                     if (replaceDeadSession) {
-                        // Ensure release in case that a replacement session did not get a chance to be made.
+                        // Safeguard against semaphore leak if parameter actions throw exceptions.
                         this.poolPermits.release();
                     }
                     throw e;
