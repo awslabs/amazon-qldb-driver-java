@@ -5,7 +5,7 @@
 * Update Ion dependency version to [1.8.0](https://github.com/amzn/ion-java/releases/tag/v1.8.0) which fixes a bug where the binary reader was throwing an error when the user requested more data than available.
 * Improved retry logic:
     * Now handles retrying on failure to start a session.
-    * Improve latency by reducing number of calls to determine session health.
+    * Reduce latency by lowering the number of calls to determine session health.
     
 ### :bug: Fixed
 * Fix broken GitHub links in POM.xml.
