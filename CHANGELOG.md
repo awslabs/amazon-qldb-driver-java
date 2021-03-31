@@ -1,10 +1,12 @@
 # 2.2.0
 
 ### :hammer_and_wrench: Improvements
-* Update AWS SDK dependency version to 2.15.79 which supports [CapacityExceededException](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html). This will better inform users that they are overloading their ledger.
-* Update Ion dependency version to 1.8.0.
-* Improved the retry logic to handle more cases and increase the likelihood of retry succeeding.
-
+* Update AWS SDK dependency version to [2.15.79](https://github.com/aws/aws-sdk-java-v2/blob/master/CHANGELOG.md#21579-2021-02-09) which supports [CapacityExceededException](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html). This will better inform users that they are overloading their ledger.
+* Update Ion dependency version to [1.8.0](https://github.com/amzn/ion-java/releases/tag/v1.8.0) which fixes a bug where the binary reader was throwing an error when the user requested more data than available.
+* Improved retry logic:
+    * Now handles retrying on failure to start a session.
+    * Improve latency by reducing number of calls to determine session health.
+    
 ### :bug: Fixed
 * Fix broken GitHub links in POM.xml.
 
