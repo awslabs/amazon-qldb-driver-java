@@ -32,5 +32,5 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml -D region=us-east-1 -D ledgerSuffix=${{ matrix.java}}-${{ matrix.os }}
     - name: Upload code coverage
-      run: bash <(curl -s https://codecov.io/bash)
+      run: bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}
       shell: bash
