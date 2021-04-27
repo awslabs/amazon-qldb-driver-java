@@ -33,4 +33,4 @@ jobs:
       run: mvn -B package --file pom.xml -D region=us-east-1 -D ledgerSuffix=${{ matrix.java}}-${{ matrix.os }}
     - name: Upload code coverage
       run: bash <(curl -s https://codecov.io/bash)
-
+      shell: bash
