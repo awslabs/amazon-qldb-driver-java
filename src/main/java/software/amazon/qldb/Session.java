@@ -101,6 +101,7 @@ class Session implements AutoCloseable {
         final String sessionToken = result.startSession().sessionToken();
         final String sessionId = result.responseMetadata().requestId();
 
+        logger.info("StartSession latency: {}", result.startSession().timingInformation().processingTimeMilliseconds());
         return new Session(ledgerName, sessionToken, sessionId, client);
     }
 
@@ -141,6 +142,7 @@ class Session implements AutoCloseable {
         final AbortTransactionRequest request = AbortTransactionRequest.builder().build();
 
         SendCommandResponse result = send(SendCommandRequest.builder().abortTransaction(request));
+        logger.info("AbortTransaction latency: {}", result.abortTransaction().timingInformation().processingTimeMilliseconds());
         return result.abortTransaction();
     }
 
@@ -162,6 +164,7 @@ class Session implements AutoCloseable {
              .build();
 
         SendCommandResponse result = send(SendCommandRequest.builder().commitTransaction(request));
+        logger.info("CommitTransaction latency: {}", result.commitTransaction().timingInformation().processingTimeMilliseconds());
         return result.commitTransaction();
     }
 
@@ -174,6 +177,8 @@ class Session implements AutoCloseable {
         final EndSessionRequest request = EndSessionRequest.builder().build();
 
         SendCommandResponse result = send(SendCommandRequest.builder().endSession(request));
+
+        logger.info("EndSession latency: {}", result.endSession().timingInformation().processingTimeMilliseconds());
         return result.endSession();
     }
 
@@ -219,6 +224,7 @@ class Session implements AutoCloseable {
                                                                        .transactionId(txnId)
                                                                        .build();
         SendCommandResponse result = send(SendCommandRequest.builder().executeStatement(request));
+        logger.info("ExecuteStatement latency: {}", result.executeStatement().timingInformation().processingTimeMilliseconds());
         return result.executeStatement();
     }
 
@@ -239,6 +245,8 @@ class Session implements AutoCloseable {
                                                          .build();
 
         SendCommandResponse result = send(SendCommandRequest.builder().fetchPage(request));
+
+        logger.info("FetchPage latency: {}", result.fetchPage().timingInformation().processingTimeMilliseconds());
         return result.fetchPage();
     }
 
@@ -252,6 +260,7 @@ class Session implements AutoCloseable {
         final SendCommandRequest.Builder command = SendCommandRequest.builder().startTransaction(request);
 
         final SendCommandResponse result = send(command);
+        logger.info("StartTransaction latency: {}", result.startTransaction().timingInformation().processingTimeMilliseconds());
         return result.startTransaction();
     }
 
