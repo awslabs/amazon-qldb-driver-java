@@ -15,6 +15,7 @@ Go To File
 # IDE configurations
 *.iml
 .vscode/
+.idea/
 
 # Build
 target/
