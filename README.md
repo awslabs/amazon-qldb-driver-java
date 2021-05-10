@@ -11,7 +11,7 @@ This is the Java driver for Amazon Quantum Ledger Database (QLDB), which allows 
 
 Version 1.x is still supported.
 
-For getting started with the driver, see [Java and Amazon QLDB](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html)
+For getting started with the driver, see [Java and Amazon QLDB](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html).
 
 ## Requirements
 
@@ -55,13 +55,13 @@ the [PartiQL Tutorial](https://PartiQL.org/tutorial.html). Also read the [PartiQ
 
 ### Setup
 
-Please see the [Setting up the Java environment.](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-quickstart-java.html#driver-quickstart-java.step-1)
+Please see the [Setting up the Java environment](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-quickstart-java.html#driver-quickstart-java.step-1).
 
-To install the driver, please see [Installing the Java driver.](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html#getting-started.java.install)
+To install the driver, please see [Installing the Java driver](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html#getting-started.java.install).
 
 ### Running Tests
 
-Assuming you use JetBrain's IntelliJ IDE, [please see Running Tests in IntelliJ IDEA.](https://www.jetbrains.com/help/idea/performing-tests.html)
+Assuming you use JetBrain's IntelliJ IDE, [please see Running Tests in IntelliJ IDEA](https://www.jetbrains.com/help/idea/performing-tests.html).
 
 ### Documentation 
 
@@ -75,7 +75,7 @@ It will generate the Javadoc for public members (defined in <reporting/>) using 
 
 It will generate the Javadoc for private members (defined in <build/>) using the stylesheet (defined in <reporting/>), and with no help page (defined in <build/>).
 
-Please see [Javadoc usage.](https://maven.apache.org/plugins/maven-javadoc-plugin/usage.html)
+Please see [Javadoc usage](https://maven.apache.org/plugins/maven-javadoc-plugin/usage.html).
 
 ## Getting Help
 
