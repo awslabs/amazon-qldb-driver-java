@@ -185,23 +185,22 @@ public class StatementExecutionIntegTest {
         String searchQuery = String.format(
             "SELECT VALUE indexes[0] FROM information_schema.user_tables WHERE status = 'ACTIVE' AND name ='%s'",
             Constants.TABLE_NAME);
-        String searchValue = driver.execute(
+        Result searchResult = driver.execute(
             txn -> {
-                Result result = txn.execute(searchQuery);
-
-                // Extract the index name by querying the information_schema.
-                /* This gives:
-                {
-                    expr: "[MyColumn]"
-                }
-                */
-                String value = "";
-                for (IonValue row : result) {
-                    IonValue ionValue = ((IonStruct) row).get("expr");
-                    value = ((IonString) ionValue).stringValue();
-                }
-                return value;
+                return txn.execute(searchQuery);
             });
+
+        String searchValue = null;
+        for (IonValue row : searchResult) {
+            // Extract the index name from the information_schema query.
+            /* The format of this should be:
+            {
+                expr: "[MyColumn]"
+            }
+            */
+            IonValue ionValue = ((IonStruct) row).get("expr");
+            searchValue = ((IonString) ionValue).stringValue();
+        }
         assertEquals(String.format("[%s]", Constants.INDEX_ATTRIBUTE), searchValue);
     }
 
