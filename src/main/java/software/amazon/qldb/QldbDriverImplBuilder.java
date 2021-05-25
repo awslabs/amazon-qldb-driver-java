@@ -35,9 +35,10 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
 
     private static final IonSystem DEFAULT_ION_SYSTEM = IonSystemBuilder.standard().build();
     private static final int DEFAULT_READAHEAD = 0;
+    private static final int DEFAULT_MAX_CONCURRENT_TRANSACTIONS = SdkHttpConfigurationOption.GLOBAL_HTTP_DEFAULTS
+            .get(SdkHttpConfigurationOption.MAX_CONNECTIONS);
 
-    private int maxConcurrentTransactions = SdkHttpConfigurationOption.GLOBAL_HTTP_DEFAULTS
-        .get(SdkHttpConfigurationOption.MAX_CONNECTIONS);
+    private int maxConcurrentTransactions = DEFAULT_MAX_CONCURRENT_TRANSACTIONS;
     private int readAhead = DEFAULT_READAHEAD;
     private ExecutorService executorService;
     private QldbSessionClientBuilder clientBuilder;
@@ -158,12 +159,14 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
                 oc.retryPolicy(software.amazon.awssdk.core.retry.RetryPolicy.builder().numRetries(0).build());
             });
         });
-        AttributeMap httpConfig = AttributeMap
-            .builder()
-            .put(SdkHttpConfigurationOption.MAX_CONNECTIONS, maxConcurrentTransactions)
-            .build();
+        if (maxConcurrentTransactions != DEFAULT_MAX_CONCURRENT_TRANSACTIONS) {
+            AttributeMap httpConfig = AttributeMap
+                    .builder()
+                    .put(SdkHttpConfigurationOption.MAX_CONNECTIONS, maxConcurrentTransactions)
+                    .build();
 
-        clientBuilder.httpClient(new DefaultSdkHttpClientBuilder().buildWithDefaults(httpConfig));
+            clientBuilder.httpClient(new DefaultSdkHttpClientBuilder().buildWithDefaults(httpConfig));
+        }
         return new QldbDriverImpl(ledgerName, clientBuilder.build(), retryPolicy, readAhead, maxConcurrentTransactions, ionSystem,
                                   executorService);
     }

@@ -123,6 +123,16 @@ public class QldbDriverImplTest {
                                      .build());
     }
 
+    @Test
+    public void testBuildWithoutOverrideHttpClientWhenMaxConcurrentTransactionsIsDefault() {
+        QldbSessionClientBuilder mockSessionClientBuilder = mock(QldbSessionClientBuilder.class);
+        QldbDriver.builder()
+                  .sessionClientBuilder(mockSessionClientBuilder)
+                  .ledger(LEDGER)
+                  .build();
+        verify(mockSessionClientBuilder, never()).httpClient(any());
+    }
+
     /**
      * Happy case
      *
