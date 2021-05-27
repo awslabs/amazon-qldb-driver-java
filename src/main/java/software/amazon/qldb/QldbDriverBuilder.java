@@ -15,6 +15,7 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import java.util.concurrent.ExecutorService;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
 
 /**
@@ -168,4 +169,6 @@ public interface QldbDriverBuilder {
      * @return This builder object.
      */
     QldbDriverBuilder readAhead(int readAhead, ExecutorService executorService);
+
+    QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder);
 }

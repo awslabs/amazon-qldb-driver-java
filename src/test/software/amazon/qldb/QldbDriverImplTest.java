@@ -43,6 +43,7 @@ import org.mockito.Spy;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
 import software.amazon.awssdk.services.qldbsession.model.CapacityExceededException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
@@ -121,6 +122,29 @@ public class QldbDriverImplTest {
                                      .ledger(LEDGER)
                                      .ionSystem(null)
                                      .build());
+    }
+
+    @Test
+    public void testBuildWithNullHttpClientBuilder() {
+        assertThrows(NullPointerException.class,
+                     () -> QldbDriver.builder()
+                                     .sessionClientBuilder(mockBuilder)
+                                     .ledger(LEDGER)
+                                     .httpClientBuilder(null)
+                                     .build());
+    }
+
+    @Test
+    public void testBuildWithCustomizedHttpClientBuilder() {
+        QldbSessionClientBuilder mockSessionClientBuilder = mock(QldbSessionClientBuilder.class);
+        SdkHttpClient.Builder mockHttpClientBuilder = mock(SdkHttpClient.Builder.class);
+        QldbDriver.builder()
+                  .sessionClientBuilder(mockSessionClientBuilder)
+                  .ledger(LEDGER)
+                  .httpClientBuilder(mockHttpClientBuilder)
+                  .build();
+        verify(mockSessionClientBuilder, times(1)).httpClientBuilder(mockHttpClientBuilder);
+        verify(mockSessionClientBuilder, never()).httpClient(any());
     }
 
     /**
