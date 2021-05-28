@@ -134,19 +134,6 @@ public class QldbDriverImplTest {
                                      .build());
     }
 
-    @Test
-    public void testBuildWithCustomizedHttpClientBuilder() {
-        QldbSessionClientBuilder mockSessionClientBuilder = mock(QldbSessionClientBuilder.class);
-        SdkHttpClient.Builder mockHttpClientBuilder = mock(SdkHttpClient.Builder.class);
-        QldbDriver.builder()
-                  .sessionClientBuilder(mockSessionClientBuilder)
-                  .ledger(LEDGER)
-                  .httpClientBuilder(mockHttpClientBuilder)
-                  .build();
-        verify(mockSessionClientBuilder, times(1)).httpClientBuilder(mockHttpClientBuilder);
-        verify(mockSessionClientBuilder, never()).httpClient(any());
-    }
-
     /**
      * Happy case
      *

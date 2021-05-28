@@ -32,6 +32,7 @@ import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
  *          .maxConcurrentTransactions(poolLimit)
  *          .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build());
  *          .sessionClientBuilder(sessionClientBuilder)
+ *          .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
  *          .build();
  * }</pre>
  *
