@@ -15,6 +15,7 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import java.util.concurrent.ExecutorService;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
 
 /**
@@ -31,6 +32,7 @@ import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
  *          .maxConcurrentTransactions(poolLimit)
  *          .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build());
  *          .sessionClientBuilder(sessionClientBuilder)
+ *          .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
  *          .build();
  * }</pre>
  *
@@ -61,7 +63,9 @@ public interface QldbDriverBuilder {
     /**
      * <p>Specify the low level QLDB session builder that should be used for accessing QLDB.</p>
      *
-     * <p>Note that the user agent suffix and retry count will be set on the specified session builder.</p>
+     * <p>Note that the user agent suffix and retry count will be set on the specified session builder,
+     * and the http client will be overwritten. To pass a customized http client to the {@link QldbDriver},
+     * use {@link #httpClientBuilder(SdkHttpClient.Builder)}.</p>
      *
      * <p>
      *     The clientBuilder is mandatory.
@@ -168,4 +172,22 @@ public interface QldbDriverBuilder {
      * @return This builder object.
      */
     QldbDriverBuilder readAhead(int readAhead, ExecutorService executorService);
+
+    /**
+     * <p>Specify the http client builder that should be used for making http requests.</p>
+     *
+     * <p>Note that if maximum connections is set in the http client, it should be equal or greater than
+     * {@link #maxConcurrentTransactions(int)} to avoid connection contentions and poor performance.
+     * If no parameter is specified then a default value would be used.</p>
+     *
+     * <p>
+     *     The httpClientBuilder is optional.
+     * </p>
+     *
+     * @param httpClientBuilder
+     *              The builder used to create the http client.
+     *
+     * @return This builder object.
+     */
+    QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder);
 }

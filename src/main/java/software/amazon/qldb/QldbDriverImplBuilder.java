@@ -20,6 +20,7 @@ import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.internal.http.loader.DefaultSdkHttpClientBuilder;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpConfigurationOption;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
 import software.amazon.awssdk.utils.AttributeMap;
@@ -44,6 +45,7 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
     private String ledgerName;
     private RetryPolicy retryPolicy = RetryPolicy.builder().build();
     private IonSystem ionSystem = DEFAULT_ION_SYSTEM;
+    private SdkHttpClient.Builder httpClientBuilder;
 
     QldbDriverImplBuilder() {
     }
@@ -80,6 +82,13 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
     public QldbDriverBuilder sessionClientBuilder(QldbSessionClientBuilder clientBuilder) {
         Validate.paramNotNull(clientBuilder, "clientBuilder");
         this.clientBuilder = clientBuilder;
+        return this;
+    }
+
+    @Override
+    public QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder) {
+        Validate.notNull(httpClientBuilder, "httpClientBuilder");
+        this.httpClientBuilder = httpClientBuilder;
         return this;
     }
 
@@ -158,12 +167,16 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
                 oc.retryPolicy(software.amazon.awssdk.core.retry.RetryPolicy.builder().numRetries(0).build());
             });
         });
-        AttributeMap httpConfig = AttributeMap
-            .builder()
-            .put(SdkHttpConfigurationOption.MAX_CONNECTIONS, maxConcurrentTransactions)
-            .build();
+        if (this.httpClientBuilder != null) {
+            clientBuilder.httpClientBuilder(this.httpClientBuilder);
+        } else {
+            AttributeMap httpConfig = AttributeMap
+                .builder()
+                .put(SdkHttpConfigurationOption.MAX_CONNECTIONS, maxConcurrentTransactions)
+                .build();
 
-        clientBuilder.httpClient(new DefaultSdkHttpClientBuilder().buildWithDefaults(httpConfig));
+            clientBuilder.httpClient(new DefaultSdkHttpClientBuilder().buildWithDefaults(httpConfig));
+        }
         return new QldbDriverImpl(ledgerName, clientBuilder.build(), retryPolicy, readAhead, maxConcurrentTransactions, ionSystem,
                                   executorService);
     }
