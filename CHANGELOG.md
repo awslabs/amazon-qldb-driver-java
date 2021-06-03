@@ -1,4 +1,24 @@
-# 2.2.0
+# 2.3.0
+
+### :hammer_and_wrench: Improvements
+* Add `httpClientBuilder` attribute to `QldbDriverBuilder` to allow customized HTTP client.
+    * The following code demonstrates how to use it:
+        ```
+        QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
+        
+        QldbDriverBuilder builder = QldbDriver
+            .builder()
+            .ledger(ledger);
+            .maxConcurrentTransactions(poolLimit)
+            .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build());
+            .sessionClientBuilder(sessionClientBuilder)
+            .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
+            .build();
+        ```
+  * Note: The maximum connections set in the HTTP client should be equal or greater than the `maxConcurrentTransactions`
+    to avoid connection contentions and poor performance.
+
+# [2.2.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.2.0)
 
 ### :hammer_and_wrench: Improvements
 * Update AWS SDK dependency version to [2.15.79](https://github.com/aws/aws-sdk-java-v2/blob/master/CHANGELOG.md#21579-2021-02-09) which supports [CapacityExceededException](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html). This will better inform users that they are overloading their ledger.
