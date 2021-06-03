@@ -1,7 +1,7 @@
 # 2.3.0
 
 ### :hammer_and_wrench: Improvements
-* Add `httpClientBuilder` attribute to `QldbDriverBuilder` to allow customized HTTP client.
+* Add `httpClientBuilder` attribute to `QldbDriverBuilder` to support use of custom HTTP clients.
     * The following code demonstrates how to use it:
         ```
         QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
@@ -16,7 +16,7 @@
             .build();
         ```
   * Note: The maximum connections set in the HTTP client should be equal or greater than the `maxConcurrentTransactions`
-    to avoid connection contentions and poor performance.
+    to avoid leading to poor performance.
 
 # [2.2.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.2.0)
 
