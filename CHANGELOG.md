@@ -1,19 +1,24 @@
-# 2.3.0
+# 2.3.1
+
+### :bug: Fixed
+* Fix incorrect code snippet in docstrings.
+
+# [2.3.0](https://github.com/awslabs/amazon-qldb-driver-java/releases/tag/v2.3.0)
 
 ### :hammer_and_wrench: Improvements
 * Add `httpClientBuilder` attribute to `QldbDriverBuilder` to support use of custom HTTP clients.
     * The following code demonstrates how to use it:
         ```
         QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
-        
-        QldbDriverBuilder builder = QldbDriver
-            .builder()
-            .ledger(ledger);
-            .maxConcurrentTransactions(poolLimit)
-            .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build());
-            .sessionClientBuilder(sessionClientBuilder)
-            .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
-            .build();
+
+        QldbDriver qldbDriver = QldbDriver
+                .builder()
+                .ledger(ledger)
+                .maxConcurrentTransactions(poolLimit)
+                .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build())
+                .sessionClientBuilder(sessionClientBuilder)
+                .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
+                .build();
         ```
   * Note: The maximum connections set in the HTTP client should be equal or greater than the `maxConcurrentTransactions`
     to avoid connection contentions leading to poor performance.
