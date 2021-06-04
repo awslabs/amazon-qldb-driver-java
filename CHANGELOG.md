@@ -12,13 +12,13 @@
         QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
 
         QldbDriver qldbDriver = QldbDriver
-                .builder()
-                .ledger(ledger)
-                .maxConcurrentTransactions(poolLimit)
-                .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build())
-                .sessionClientBuilder(sessionClientBuilder)
-                .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
-                .build();
+            .builder()
+            .ledger(ledger)
+            .maxConcurrentTransactions(poolLimit)
+            .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build())
+            .sessionClientBuilder(sessionClientBuilder)
+            .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
+            .build();
         ```
   * Note: The maximum connections set in the HTTP client should be equal or greater than the `maxConcurrentTransactions`
     to avoid connection contentions leading to poor performance.

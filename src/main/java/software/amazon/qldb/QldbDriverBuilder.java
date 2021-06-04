@@ -27,13 +27,13 @@ import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
  *     QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
  *
  *     QldbDriver qldbDriver = QldbDriver
- *             .builder()
- *             .ledger(ledger)
- *             .maxConcurrentTransactions(poolLimit)
- *             .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build())
- *             .sessionClientBuilder(sessionClientBuilder)
- *             .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
- *             .build();
+ *         .builder()
+ *         .ledger(ledger)
+ *         .maxConcurrentTransactions(poolLimit)
+ *         .transactionRetryPolicy(TransactionRetryPolicy.builder().maxNumberOfRetries(retryLimit).build())
+ *         .sessionClientBuilder(sessionClientBuilder)
+ *         .httpClientBuilder(ApacheHttpClient.builder().maxConnections(maxConnections))
+ *         .build();
  * }</pre>
  *
  */
