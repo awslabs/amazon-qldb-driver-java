@@ -23,8 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
-import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
@@ -42,7 +42,7 @@ import software.amazon.qldb.exceptions.QldbDriverException;
 class ResultRetriever {
     private static final Logger logger = LoggerFactory.getLogger(ResultRetriever.class);
 
-    private final Session session;
+    private final SessionV2 session;
     private Page currentPage;
     private int currentResultValueIndex;
 
@@ -71,7 +71,7 @@ class ResultRetriever {
      * @param timingInfo
      *              The initial server side timing information from the statement execution.
      */
-    ResultRetriever(Session session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
+    ResultRetriever(SessionV2 session, Page firstPage, String txnId, int readAhead, IonSystem ionSystem,
                            ExecutorService executorService, IOUsage ioUsage, TimingInformation timingInfo) {
         Validate.isNotNegative(readAhead, "readAhead");
 
@@ -173,7 +173,7 @@ class ResultRetriever {
      * Basic object for retrieving the next chunk of data from QLDB for a result set.
      */
     private static class Retriever {
-        final Session session;
+        final SessionV2 session;
         String nextPageToken;
         private final String txnId;
 
@@ -195,7 +195,7 @@ class ResultRetriever {
          * @param timingInfo
          *              The initial TimingInformation from the statement execution.
          */
-        private Retriever(Session session, String txnId, String nextPageToken, IOUsage ioUsage, TimingInformation timingInfo) {
+        private Retriever(SessionV2 session, String txnId, String nextPageToken, IOUsage ioUsage, TimingInformation timingInfo) {
             this.session = session;
             this.txnId = txnId;
             this.nextPageToken = nextPageToken;
@@ -223,7 +223,7 @@ class ResultRetriever {
          * Update the metrics.
          */
         void updateMetrics(FetchPageResult fetchPageResult) {
-            software.amazon.awssdk.services.qldbsession.model.IOUsage ioUsage = fetchPageResult.consumedIOs();
+            software.amazon.awssdk.services.qldbsessionv2.model.IOUsage ioUsage = fetchPageResult.consumedIOs();
             if (ioUsage != null) {
                 final Long readIOs = ioUsage.readIOs();
                 if (readIOs != null) {
@@ -244,7 +244,7 @@ class ResultRetriever {
                 }
             }
 
-            software.amazon.awssdk.services.qldbsession.model.TimingInformation timingInfo = fetchPageResult.timingInformation();
+            software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation timingInfo = fetchPageResult.timingInformation();
             if (timingInfo != null) {
                 final Long processingTimeMilliseconds = timingInfo.processingTimeMilliseconds();
                 if (processingTimeMilliseconds != null) {
@@ -309,7 +309,7 @@ class ResultRetriever {
          * @param timingInfo
          *              The initial TimingInformation from the statement execution.
          */
-        ResultRetrieverRunnable(Session session, String txnId, String nextPageToken, int readAhead,
+        ResultRetrieverRunnable(SessionV2 session, String txnId, String nextPageToken, int readAhead,
                                 AtomicBoolean isClosed, IOUsage ioUsage, TimingInformation timingInfo) {
             super(session, txnId, nextPageToken, ioUsage, timingInfo);
             this.readAhead = Math.min(1, readAhead - 1);

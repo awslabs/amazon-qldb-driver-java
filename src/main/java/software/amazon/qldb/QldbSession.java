@@ -19,11 +19,12 @@ import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
+import software.amazon.awssdk.annotations.ThreadSafe;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
 import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
 import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
-import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
 import software.amazon.qldb.exceptions.ExecuteException;
 
 /**
@@ -34,15 +35,15 @@ import software.amazon.qldb.exceptions.ExecuteException;
  * lambda, then the lambda will be retried.
  *
  */
-@NotThreadSafe
+@ThreadSafe
 class QldbSession {
     private static final Logger logger = LoggerFactory.getLogger(QldbSession.class);
     private final int readAhead;
     private final ExecutorService executorService;
-    private Session session;
+    private SessionV2 session;
     private final IonSystem ionSystem;
 
-    QldbSession(Session session, int readAhead, IonSystem ionSystem, ExecutorService executorService) {
+    QldbSession(SessionV2 session, int readAhead, IonSystem ionSystem, ExecutorService executorService) {
         this.ionSystem = ionSystem;
         this.session = session;
         this.readAhead = readAhead;
@@ -122,12 +123,13 @@ class QldbSession {
         }
     }
 
-    String getSessionId() {
-        return this.session.getId();
-    }
+    //TODO: Connection Id
+//    String getSessionId() {
+//        return this.session.getId();
+//    }
 
     private Transaction startTransaction() {
-        final StartTransactionResult startTransaction = session.sendStartTransaction();
+        final StartTransactionResult startTransaction= session.sendStartTransaction();
         return new Transaction(session, startTransaction.transactionId(), readAhead, ionSystem, executorService);
     }
 

@@ -15,14 +15,17 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.system.IonSystemBuilder;
+
+import java.time.Duration;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.internal.http.loader.DefaultSdkHttpClientBuilder;
-import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.core.internal.http.loader.DefaultSdkAsyncHttpClientBuilder;
+import software.amazon.awssdk.http.Protocol;
 import software.amazon.awssdk.http.SdkHttpConfigurationOption;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
+import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClientBuilder;
 import software.amazon.awssdk.utils.AttributeMap;
 import software.amazon.awssdk.utils.Validate;
 
@@ -41,11 +44,11 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
         .get(SdkHttpConfigurationOption.MAX_CONNECTIONS);
     private int readAhead = DEFAULT_READAHEAD;
     private ExecutorService executorService;
-    private QldbSessionClientBuilder clientBuilder;
+    private QldbSessionV2AsyncClientBuilder clientBuilder;
     private String ledgerName;
     private RetryPolicy retryPolicy = RetryPolicy.builder().build();
     private IonSystem ionSystem = DEFAULT_ION_SYSTEM;
-    private SdkHttpClient.Builder httpClientBuilder;
+    private SdkAsyncHttpClient.Builder httpClientBuilder;
 
     QldbDriverImplBuilder() {
     }
@@ -79,14 +82,14 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
     }
 
     @Override
-    public QldbDriverBuilder sessionClientBuilder(QldbSessionClientBuilder clientBuilder) {
+    public QldbDriverBuilder sessionClientBuilder(QldbSessionV2AsyncClientBuilder clientBuilder) {
         Validate.paramNotNull(clientBuilder, "clientBuilder");
         this.clientBuilder = clientBuilder;
         return this;
     }
 
     @Override
-    public QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder) {
+    public QldbDriverBuilder httpClientBuilder(SdkAsyncHttpClient.Builder httpClientBuilder) {
         Validate.notNull(httpClientBuilder, "httpClientBuilder");
         this.httpClientBuilder = httpClientBuilder;
         return this;
@@ -175,7 +178,7 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
                 .put(SdkHttpConfigurationOption.MAX_CONNECTIONS, maxConcurrentTransactions)
                 .build();
 
-            clientBuilder.httpClient(new DefaultSdkHttpClientBuilder().buildWithDefaults(httpConfig));
+            clientBuilder.httpClient(new DefaultSdkAsyncHttpClientBuilder().buildWithDefaults(httpConfig));
         }
         return new QldbDriverImpl(ledgerName, clientBuilder.build(), retryPolicy, readAhead, maxConcurrentTransactions, ionSystem,
                                   executorService);

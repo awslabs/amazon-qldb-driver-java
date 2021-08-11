@@ -35,19 +35,19 @@ import org.mockito.MockitoAnnotations;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.qldbsession.model.CommitTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
-import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
-import software.amazon.awssdk.services.qldbsession.model.Page;
-import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.InvalidSessionException;
+import software.amazon.awssdk.services.qldbsessionv2.model.OccConflictException;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
 
 public class TransactionTest {
     private static final IonSystem system = IonSystemBuilder.standard().build();
     private static final String txnId = "txnId";
 
     @Mock
-    private Session mockSession;
+    private SessionV2 mockSession;
 
     @Mock
     private StartTransactionResult mockStartTransaction;

@@ -118,6 +118,11 @@
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.api.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.reactivex.rxjava3</groupId>
+            <artifactId>rxjava</artifactId>
+            <version>3.0.13</version>
+        </dependency>
 
         <!-- test dependencies -->
         <dependency>

@@ -25,7 +25,7 @@ public class IOUsage {
         this.writeIOs = writeIOs;
     }
 
-    IOUsage(software.amazon.awssdk.services.qldbsession.model.IOUsage ioUsage) {
+    IOUsage(software.amazon.awssdk.services.qldbsessionv2.model.IOUsage ioUsage) {
         this.readIOs = ioUsage.readIOs();
         this.writeIOs = ioUsage.writeIOs();
     }

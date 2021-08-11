@@ -21,11 +21,18 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.ThreadSafe;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2Client;
+import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.ExecuteException;
@@ -55,7 +62,7 @@ class QldbDriverImpl implements QldbDriver {
 
     private final int readAhead;
     private final ExecutorService executorService;
-    private final QldbSessionClient amazonQldbSession;
+    private final QldbSessionV2AsyncClient client;
     private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
@@ -83,14 +90,14 @@ class QldbDriverImpl implements QldbDriver {
      *                  The executor to be used by the retrieval thread if read-ahead is enabled.
      */
     protected QldbDriverImpl(String ledgerName,
-                             QldbSessionClient qldbSessionClient,
+                             QldbSessionV2AsyncClient qldbSessionClient,
                              RetryPolicy retryPolicy,
                              int readAhead,
                              int maxConcurrentTransactions,
                              IonSystem ionSystem,
                              ExecutorService executorService) {
         this.ledgerName = ledgerName;
-        this.amazonQldbSession = qldbSessionClient;
+        this.client = qldbSessionClient;
         this.retryPolicy = retryPolicy;
         this.ionSystem = ionSystem;
         this.isClosed = new AtomicBoolean(false);
@@ -211,7 +218,7 @@ class QldbDriverImpl implements QldbDriver {
                 QldbSession session = pool.poll();
                 if (session == null) {
                     session = createNewSession();
-                    logger.debug("Creating new pooled session. Session ID: {}.", session.getSessionId());
+//                    logger.debug("Creating new pooled session. Session ID: {}.", session.getSessionId());
                 }
                 return session;
             } else {
@@ -225,7 +232,8 @@ class QldbDriverImpl implements QldbDriver {
 
     private QldbSession createNewSession() {
         try {
-            final Session session = Session.startSession(ledgerName, amazonQldbSession);
+            final SessionV2 session = new SessionV2(ledgerName, client);
+            session.startConnection();
             return new QldbSession(session, readAhead, ionSystem, executorService);
         } catch (SdkException ase) {
             throw new ExecuteException(ase, true, false, true, "None");

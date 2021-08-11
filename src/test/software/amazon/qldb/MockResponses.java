@@ -26,25 +26,19 @@ import software.amazon.awssdk.awscore.AwsResponseMetadata;
 import software.amazon.awssdk.awscore.DefaultAwsResponseMetadata;
 import software.amazon.awssdk.awscore.util.AwsHeader;
 import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.services.qldbsession.model.AbortTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.CommitTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.EndSessionResult;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.Page;
-import software.amazon.awssdk.services.qldbsession.model.SendCommandResponse;
-import software.amazon.awssdk.services.qldbsession.model.StartSessionResult;
-import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.ValueHolder;
+import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommandResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.EndSessionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponse;
+import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
 
 public class MockResponses {
     public static final String SESSION_TOKEN = "sessionToken";
     public static final String REQUEST_ID = "requestId";
-    public static final SendCommandResponse ABORT_RESPONSE =
-        addRequestId(SendCommandResponse.builder().abortTransaction(AbortTransactionResult.builder().build()));
-    public static final StartSessionResult startSessionResult =
-        StartSessionResult.builder().sessionToken(SESSION_TOKEN).build();
-    public static final SendCommandResponse START_SESSION_RESPONSE =
-        addRequestId(SendCommandResponse.builder().startSession(startSessionResult));
 
     public static List<ValueHolder> createByteValues(List<IonValue> ionList) throws java.io.IOException {
         final List<ValueHolder> byteParameters = new ArrayList<>(ionList.size());
@@ -63,42 +57,41 @@ public class MockResponses {
         return byteParameters;
     }
 
-    public static SendCommandResponse commitTransactionResponse(ByteBuffer commitDigest) {
-        return addRequestId(SendCommandResponse.builder().commitTransaction(
-            CommitTransactionResult
+    public static SendCommandResponse sendCommandResponse() {
+        return SendCommandResponse.builder().build();
+    }
+
+    public static CommandResult commitTransactionResponse(ByteBuffer commitDigest) {
+        return CommandResult.builder().commitTransaction(
+                CommitTransactionResult
                 .builder()
-                .commitDigest(
-                    SdkBytes
-                        .fromByteBuffer(commitDigest))
-                .build()));
+                .commitDigest(SdkBytes.fromByteBuffer(commitDigest))
+                .build()
+        ).build();
     }
 
-    public static SendCommandResponse executeResponse(ExecuteStatementResult result) {
-        return addRequestId(SendCommandResponse.builder().executeStatement(result));
+    public static CommandResult executeResponse(ExecuteStatementResult result) {
+        return CommandResult.builder().executeStatement(result).build();
     }
 
-    public static SendCommandResponse executeResponse(List<IonValue> results) throws IOException {
+    public static CommandResult executeResponse(List<IonValue> results) throws IOException {
         final Page page = Page.builder().nextPageToken(null).values(createByteValues(results)).build();
         final ExecuteStatementResult result = ExecuteStatementResult.builder()
                                                                     .firstPage(page).build();
-        return addRequestId(SendCommandResponse.builder().executeStatement(result));
+        return CommandResult.builder().executeStatement(result).build();
     }
 
-    public static SendCommandResponse startTxnResponse(String id) {
+    public static CommandResult startTxnResponse(String id) {
         final StartTransactionResult startTransaction = StartTransactionResult.builder().transactionId(id).build();
-        return addRequestId(SendCommandResponse.builder().startTransaction(startTransaction));
+        return CommandResult.builder().startTransaction(startTransaction).build();
     }
 
-    public static SendCommandResponse endSessionResponse() {
-        return addRequestId(SendCommandResponse.builder().endSession(EndSessionResult.builder().build()));
+    public static CommandResult abortTxnResponse() {
+       return CommandResult.builder().abortTransaction(AbortTransactionResult.builder().build()).build();
     }
 
-    private static SendCommandResponse addRequestId(SendCommandResponse.Builder result) {
-        final Map<String, String> responseMap = new HashMap<>();
-        responseMap.put(AwsHeader.AWS_REQUEST_ID, REQUEST_ID);
-
-        AwsResponseMetadata awsResponseMetadata = DefaultAwsResponseMetadata.create(responseMap);
-        result.responseMetadata(awsResponseMetadata);
-        return result.build();
+    public static CommandResult endSessionResponse() {
+        return CommandResult.builder().endSession(EndSessionResult.builder().build()).build();
     }
+
 }

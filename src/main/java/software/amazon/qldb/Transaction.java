@@ -25,8 +25,8 @@ import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.OccConflictException;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 
@@ -54,7 +54,7 @@ import software.amazon.qldb.exceptions.Errors;
 @NotThreadSafe
 class Transaction {
     private static final Logger logger = LoggerFactory.getLogger(Transaction.class);
-    private final Session session;
+    private final SessionV2 session;
     private final String txnId;
     private final IonSystem ionSystem;
     private QldbHash txnHash;
@@ -66,7 +66,7 @@ class Transaction {
     // by the operations performed on QLDB.
     private final Deque<StreamResult> results;
 
-    Transaction(Session session, String txnId, int readAheadBufferCount, IonSystem ionSystem,
+    Transaction(SessionV2 session, String txnId, int readAheadBufferCount, IonSystem ionSystem,
                 ExecutorService executorService) {
         Validate.notNull(session, "session");
         Validate.notNull(txnId, "txnId");

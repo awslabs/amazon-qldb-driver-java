@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
 
 public class ResultHolderTest {
     @Test

@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 
@@ -43,7 +43,7 @@ class StreamResult implements Result {
     private final AtomicBoolean isRetrieved;
     private final IonIterator childItr;
     private final boolean isEmpty;
-    private final Session session;
+    private final SessionV2 session;
     private final String txnId;
     private final IonSystem ionSystem;
 
@@ -61,8 +61,8 @@ class StreamResult implements Result {
      * @param executorService
      *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
      */
-    StreamResult(Session session, ExecuteStatementResult statementResult, String txnId, int readAheadBufferCount,
-                        IonSystem ionSystem, ExecutorService executorService) {
+    StreamResult(SessionV2 session, ExecuteStatementResult statementResult, String txnId, int readAheadBufferCount,
+                 IonSystem ionSystem, ExecutorService executorService) {
         this.session = session;
         this.txnId = txnId;
         this.ionSystem = ionSystem;
@@ -136,14 +136,14 @@ class StreamResult implements Result {
          * @param executorService
          *              The executor service to use for asynchronous retrieval. Null if new threads should be created.
          */
-        IonIterator(Session session, ExecuteStatementResult statementResult, String txnId, int readAhead, IonSystem ionSystem,
+        IonIterator(SessionV2 session, ExecuteStatementResult statementResult, String txnId, int readAhead, IonSystem ionSystem,
                     ExecutorService executorService) {
             Validate.isNotNegative(readAhead, "readAhead");
 
-            software.amazon.awssdk.services.qldbsession.model.IOUsage consumedIOs = statementResult.consumedIOs();
+            software.amazon.awssdk.services.qldbsessionv2.model.IOUsage consumedIOs = statementResult.consumedIOs();
             IOUsage ioUsage = (consumedIOs != null) ? new IOUsage(consumedIOs) : null;
 
-            software.amazon.awssdk.services.qldbsession.model.TimingInformation timingInformation =
+            software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation timingInformation =
                 statementResult.timingInformation();
             TimingInformation timingInfo = (timingInformation != null) ? new TimingInformation(timingInformation) : null;
 
