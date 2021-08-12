@@ -4,6 +4,7 @@ import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.flowables.ConnectableFlowable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import io.reactivex.rxjava3.subjects.ReplaySubject;
@@ -42,9 +43,14 @@ import software.amazon.qldb.exceptions.QldbDriverException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.sql.Connection;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -57,27 +63,33 @@ class SessionV2 {
     private static final Logger logger = LoggerFactory.getLogger(SessionV2.class);
     private final String ledgerName;
     private final QldbSessionV2AsyncClient client;
-    private final ReplaySubject<CommandStream> commandStreamSubject;
+    private final PublishSubject<CommandStream> commandStreamSubject;
     private final ResultStreamSubscriber resultStreamSubscriber;
+    private final LinkedBlockingQueue<SendCommandResponse> connection;
 
     public SessionV2(String ledgerName, QldbSessionV2AsyncClient client) {
         this.ledgerName = ledgerName;
         this.client = client;
-        this.commandStreamSubject = ReplaySubject.create();
+        this.commandStreamSubject = PublishSubject.create();
         this.resultStreamSubscriber = new ResultStreamSubscriber();
+        this.connection = new LinkedBlockingQueue<>(1);
     }
 
-    CompletableFuture<Void> connect() {
+    private CompletableFuture<Void> connect() {
         final SendCommandRequest sendCommandRequest = SendCommandRequest.builder().ledgerName(ledgerName).build();
 
-        ConnectableFlowable commandStreamFlowable = commandStreamSubject.toFlowable(BackpressureStrategy.ERROR).publish();
-        return client.sendCommand(sendCommandRequest, commandStreamFlowable, new SendCommandResponseHandler() {
+        return client.sendCommand(sendCommandRequest, commandStreamSubject.toFlowable(BackpressureStrategy.ERROR), new SendCommandResponseHandler() {
 
             @Override
             public void responseReceived(SendCommandResponse response) {
                 System.out.println("SendCommandResponseHandler: Received SendCommand response " + response);
-                // Connection has been established. Begin emitting subjects to command stream.
-                commandStreamFlowable.connect();
+                try {
+                    if(!connection.offer(response, 5000L, TimeUnit.MILLISECONDS)){
+                        System.out.println("Gave up the new connection since there is an existing connection");
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
 
             @Override
@@ -102,23 +114,24 @@ class SessionV2 {
     }
 
     private void send(CommandStream command) {
-        System.out.println(command);
+        System.out.println("Sending " + command);
         commandStreamSubject.onNext(command);
     }
 
-    void startConnection() {
+    CompletableFuture<Void> startConnection() {
         System.out.println("Start connection...");
 
-        connect().whenComplete((resp, err) -> {
-            try {
-                if (err != null){
-                    System.err.println("Connection is terminated due to error: ");
-//                    err.printStackTrace();
-                }
-            } finally {
-                System.out.println("Connection is completed.");
+        CompletableFuture<Void> future = connect();
+
+        try {
+            if(connection.poll(5000L, TimeUnit.MILLISECONDS) == null){
+                System.out.println("Timeout establishing connection.");
             }
-        });
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return future;
     }
 
     StartTransactionResult sendStartTransaction() {

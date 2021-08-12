@@ -3,24 +3,29 @@ package software.amazon.qldb;
 import software.amazon.awssdk.services.qldbsessionv2.model.CommandResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 class ResultStreamSubscriber extends SyncSubscriber<ResultStream> {
 
-    private final SynchronousQueue<CommandResult> result;
+    private final LinkedBlockingQueue<CommandResult> results;
 
     ResultStreamSubscriber() {
-        this.result = new SynchronousQueue<>(true);
+        this.results = new LinkedBlockingQueue<>();
     }
 
 
     CommandResult waitForResult() throws InterruptedException {
-        return result.take();
+        CommandResult result = results.poll(5000L, TimeUnit.MILLISECONDS);
+        if (result == null) {
+            System.out.println("Timeout waiting for result.");
+        }
+        return result;
     }
 
 
     @Override
-    protected void whenReceived(ResultStream resultStream) throws InterruptedException {
-        result.put((CommandResult) resultStream);
+    protected void whenReceived(ResultStream resultStream) {
+        results.offer((CommandResult) resultStream);
     }
 }
