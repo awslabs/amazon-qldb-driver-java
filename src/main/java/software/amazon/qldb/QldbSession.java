@@ -35,7 +35,7 @@ import software.amazon.qldb.exceptions.ExecuteException;
  * lambda, then the lambda will be retried.
  *
  */
-@ThreadSafe
+@NotThreadSafe
 class QldbSession {
     private static final Logger logger = LoggerFactory.getLogger(QldbSession.class);
     private final int readAhead;

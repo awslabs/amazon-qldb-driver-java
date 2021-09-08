@@ -27,6 +27,12 @@ import com.amazon.ion.ValueFactory;
 import com.amazon.ion.system.IonSystemBuilder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterAll;
@@ -50,13 +56,83 @@ public class StatementExecutionIntegTest {
 
         ledgerManager = new LedgerManager(Constants.LEDGER_NAME, "us-east-1");
 
+        // Create table
+//        String createTableQuery = String.format("CREATE TABLE %s", Constants.TABLE_NAME);
+//        int createTableCount = driver.execute(
+//            txn -> {
+//                Result result = txn.execute(createTableQuery);
+//
+//                int count = 0;
+//                for (IonValue row : result) {
+//                    count++;
+//                }
+//                return count;
+//            });
+//        assertEquals(1, createTableCount);
+//        Iterable<String> result = driver.getTableNames();
+//        for (String tableName : result) {
+//            assertEquals(Constants.TABLE_NAME, tableName);
+//        }
+
+
+
         driver = ledgerManager.createQldbDriver(Constants.DEFAULT, Constants.RETRY_LIMIT);
 
     }
 
     @Test
-    public void testEventStreaming() {
+    public void testEventStreamingInvalidStatement() {
         driver.execute(txn -> {txn.execute("invalid statement");});
+    }
+
+    @Test
+    public void testEventStreamingValidStatement() {
+        String schemaQuery = "SELECT * FROM information_schema.user_tables";
+        String searchQuery = String.format("SELECT * FROM %s", Constants.TABLE_NAME);
+
+        Result result = driver.execute(txn -> {
+            Result streamResult = txn.execute(searchQuery);
+            return streamResult;
+        });
+
+        System.out.println(result.getCurrentValues());
+
+    }
+
+    @Test
+    public void testSessionThreadSafe() {
+        String searchQuery = String.format("SELECT * FROM %s", Constants.TABLE_NAME);
+        String schemaQuery = "SELECT * FROM information_schema.user_tables";
+
+        driver.execute(txn -> {
+            Runnable r1 = () -> {
+                for (int i = 0; i < 5; i++) {
+                    System.out.println(Thread.currentThread().getName() + ": " + i);
+                    Result streamResult = txn.execute(searchQuery);
+                    System.out.println(Thread.currentThread().getName() + ": " + streamResult.getCurrentValues());
+                }
+            };
+
+            Runnable r2 = () -> {
+                for (int i = 0; i < 5; i++) {
+                    System.out.println(Thread.currentThread().getName() + ": " + i);
+                    Result streamResult = txn.execute(schemaQuery);
+                    System.out.println(Thread.currentThread().getName() + ": " + streamResult.getCurrentValues());
+                }
+            };
+
+            Thread t1 = new Thread(r1);
+            Thread t2 = new Thread(r2);
+
+            t1.start();
+            t2.start();
+
+            try {
+                Thread.sleep(3000L);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
 //    @AfterAll
@@ -212,42 +288,42 @@ public class StatementExecutionIntegTest {
 //        assertEquals(0, resultSetSize);
 //    }
 //
-//    @Test
-//    public void execute_InsertDocument_DocumentIsInserted() {
-//        // Given
-//        // Create Ion struct to insert
-//        IonStruct ionStruct = valueFactory.newEmptyStruct();
-//        ionStruct.add(Constants.COLUMN_NAME, valueFactory.newString(Constants.SINGLE_DOCUMENT_VALUE));
-//
-//        // When
-//        String insertQuery = String.format("INSERT INTO %s ?", Constants.TABLE_NAME);
-//        int insertCount = driver.execute(
-//            txn -> {
-//                Result result = txn.execute(insertQuery, ionStruct);
-//
-//                int count = 0;
-//                for (IonValue row : result) {
-//                    count++;
-//                }
-//                return count;
-//            });
-//        assertEquals(1, insertCount);
-//
-//        // Then
-//        String searchQuery = String.format("SELECT VALUE %s FROM %s WHERE %s = '%s'",
-//            Constants.COLUMN_NAME, Constants.TABLE_NAME, Constants.COLUMN_NAME, Constants.SINGLE_DOCUMENT_VALUE);
-//        String searchValue = driver.execute(
-//            txn -> {
-//                Result result = txn.execute(searchQuery);
-//
-//                String value = "";
-//                for (IonValue row : result) {
-//                    value = ((IonString) row).stringValue();
-//                }
-//                return value;
-//            });
-//        assertEquals(Constants.SINGLE_DOCUMENT_VALUE, searchValue);
-//    }
+    @Test
+    public void execute_InsertDocument_DocumentIsInserted() {
+        // Given
+        // Create Ion struct to insert
+        IonStruct ionStruct = valueFactory.newEmptyStruct();
+        ionStruct.add(Constants.COLUMN_NAME, valueFactory.newString(Constants.SINGLE_DOCUMENT_VALUE));
+
+        // When
+        String insertQuery = String.format("INSERT INTO %s ?", Constants.TABLE_NAME);
+        int insertCount = driver.execute(
+            txn -> {
+                Result result = txn.execute(insertQuery, ionStruct);
+
+                int count = 0;
+                for (IonValue row : result) {
+                    count++;
+                }
+                return count;
+            });
+        assertEquals(1, insertCount);
+
+        // Then
+        String searchQuery = String.format("SELECT VALUE %s FROM %s WHERE %s = '%s'",
+            Constants.COLUMN_NAME, Constants.TABLE_NAME, Constants.COLUMN_NAME, Constants.SINGLE_DOCUMENT_VALUE);
+        String searchValue = driver.execute(
+            txn -> {
+                Result result = txn.execute(searchQuery);
+
+                String value = "";
+                for (IonValue row : result) {
+                    value = ((IonString) row).stringValue();
+                }
+                return value;
+            });
+        assertEquals(Constants.SINGLE_DOCUMENT_VALUE, searchValue);
+    }
 //
 //    @Test
 //    public void execute_QuerySingleField_ReturnsSingleField() {
@@ -325,54 +401,55 @@ public class StatementExecutionIntegTest {
 //        assertEquals(Constants.SINGLE_DOCUMENT_VALUE, searchValue);
 //    }
 //
-//    @Test
-//    public void execute_InsertMultipleDocuments_DocumentsInserted() {
-//        IonString ionString1 = valueFactory.newString(Constants.MULTIPLE_DOCUMENT_VALUE_1);
-//        IonString ionString2 = valueFactory.newString(Constants.MULTIPLE_DOCUMENT_VALUE_2);
-//
-//        // Given
-//        // Create Ion structs to insert
-//        IonStruct ionStruct1 = valueFactory.newEmptyStruct();
-//        ionStruct1.add(Constants.COLUMN_NAME, ionString1);
-//
-//        IonStruct ionStruct2 = valueFactory.newEmptyStruct();
-//        ionStruct2.add(Constants.COLUMN_NAME, ionString2);
-//
-//        List<IonValue> parameters = new ArrayList<>();
-//        parameters.add(ionStruct1);
-//        parameters.add(ionStruct2);
-//
-//        // When
-//        String insertQuery = String.format("INSERT INTO %s <<?,?>>", Constants.TABLE_NAME);
-//        int insertCount = driver.execute(
-//            txn -> {
-//                Result result = txn.execute(insertQuery, parameters);
-//
-//                int count = 0;
-//                for (IonValue row : result) {
-//                    count++;
-//                }
-//                return count;
-//            });
-//        assertEquals(2, insertCount);
-//
-//        // Then
-//        String searchQuery = String.format("SELECT VALUE %s FROM %s WHERE %s IN (?,?)",
-//            Constants.COLUMN_NAME, Constants.TABLE_NAME, Constants.COLUMN_NAME);
-//        List<String> searchValues = driver.execute(
-//            txn -> {
-//                Result result = txn.execute(searchQuery, ionString1, ionString2);
-//
-//                List<String> values = new ArrayList<>();
-//                for (IonValue row : result)
-//                {
-//                    values.add(((IonString) row).stringValue());
-//                }
-//                return values;
-//            });
-//        assertTrue(searchValues.contains(Constants.MULTIPLE_DOCUMENT_VALUE_1));
-//        assertTrue(searchValues.contains(Constants.MULTIPLE_DOCUMENT_VALUE_2));
-//    }
+    @Test
+    public void execute_InsertMultipleDocuments_DocumentsInserted() {
+        IonString ionString1 = valueFactory.newString(Constants.MULTIPLE_DOCUMENT_VALUE_1);
+        IonString ionString2 = valueFactory.newString(Constants.MULTIPLE_DOCUMENT_VALUE_2);
+
+        // Given
+        // Create Ion structs to insert
+        IonStruct ionStruct1 = valueFactory.newEmptyStruct();
+        ionStruct1.add(Constants.COLUMN_NAME, ionString1);
+
+        IonStruct ionStruct2 = valueFactory.newEmptyStruct();
+        ionStruct2.add(Constants.COLUMN_NAME, ionString2);
+
+        List<IonValue> parameters = new ArrayList<>();
+        parameters.add(ionStruct1);
+        parameters.add(ionStruct2);
+
+        // When
+        String insertQuery = String.format("INSERT INTO %s <<?,?>>", Constants.TABLE_NAME);
+        int insertCount = driver.execute(
+            txn -> {
+                Result result = txn.execute(insertQuery, parameters);
+
+                int count = 0;
+                for (IonValue row : result) {
+                    count++;
+                }
+                return count;
+            });
+        assertEquals(2, insertCount);
+
+        // Then
+        String searchQuery = String.format("SELECT VALUE %s FROM %s WHERE %s IN (?,?)",
+            Constants.COLUMN_NAME, Constants.TABLE_NAME, Constants.COLUMN_NAME);
+        List<String> searchValues = driver.execute(
+            txn -> {
+                Result result = txn.execute(searchQuery, ionString1, ionString2);
+
+                List<String> values = new ArrayList<>();
+                for (IonValue row : result)
+                {
+                    values.add(((IonString) row).stringValue());
+                    System.out.println(row);
+                }
+                return values;
+            });
+        assertTrue(searchValues.contains(Constants.MULTIPLE_DOCUMENT_VALUE_1));
+        assertTrue(searchValues.contains(Constants.MULTIPLE_DOCUMENT_VALUE_2));
+    }
 //
 //    @Test
 //    public void execute_DeleteSingleDocument_DocumentIsDeleted() {

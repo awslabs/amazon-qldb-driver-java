@@ -66,16 +66,16 @@ public class LedgerManager {
             builder.transactionRetryPolicy(RetryPolicy.builder().maxRetries(retryLimit).build());
         }
 
-        AttributeMap httpConfig = AttributeMap
-                .builder()
-                .put(SdkHttpConfigurationOption.PROTOCOL, Protocol.HTTP2)
-                .put(SdkHttpConfigurationOption.TRUST_ALL_CERTIFICATES, true)
-                .build();
 
         QldbSessionV2AsyncClientBuilder sessionClientBuilder = QldbSessionV2AsyncClient.builder()
                 .region(Region.of(regionName))
                 .endpointOverride(URI.create("https://session-547110709870.dev.qldb.aws.a2z.com"));
 
+        AttributeMap httpConfig = AttributeMap
+                .builder()
+                .put(SdkHttpConfigurationOption.PROTOCOL, Protocol.HTTP2)
+                .put(SdkHttpConfigurationOption.TRUST_ALL_CERTIFICATES, true)
+                .build();
         builder.sessionClientBuilder(sessionClientBuilder);
         builder.httpClientBuilder(attributeMap -> new DefaultSdkAsyncHttpClientBuilder().buildWithDefaults(httpConfig));
 

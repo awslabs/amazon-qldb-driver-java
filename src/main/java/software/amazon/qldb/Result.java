@@ -16,6 +16,8 @@ package software.amazon.qldb;
 import com.amazon.ion.IonValue;
 import software.amazon.awssdk.annotations.NotThreadSafe;
 
+import java.util.List;
+
 /**
  * Interface for the result of executing a statement in QLDB.
  *
@@ -42,4 +44,7 @@ public interface Result extends Iterable<IonValue> {
      * @return The current TimingInformation statistics.
      */
     TimingInformation getTimingInformation();
+
+    // TODO: Remove the getter
+    List<IonValue> getCurrentValues();
 }

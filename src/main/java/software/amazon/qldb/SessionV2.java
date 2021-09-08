@@ -4,12 +4,7 @@ import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import io.reactivex.rxjava3.core.BackpressureStrategy;
-import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.flowables.ConnectableFlowable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
-import io.reactivex.rxjava3.subjects.ReplaySubject;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.ThreadSafe;
@@ -36,20 +31,16 @@ import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHa
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
-import software.amazon.awssdk.utils.FunctionalUtils;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.sql.Connection;
-import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 
@@ -82,7 +73,7 @@ class SessionV2 {
 
             @Override
             public void responseReceived(SendCommandResponse response) {
-                System.out.println("SendCommandResponseHandler: Received SendCommand response " + response);
+                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received SendCommand response " + response);
                 try {
                     if(!connection.offer(response, 5000L, TimeUnit.MILLISECONDS)){
                         System.out.println("Gave up the new connection since there is an existing connection");
@@ -94,9 +85,7 @@ class SessionV2 {
 
             @Override
             public void onEventStream(SdkPublisher<ResultStream> publisher) {
-                System.out.println("SendCommandResponseHandler: On event stream...");
-
-                assert resultStreamSubscriber != null;
+                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: On event stream...");
                 publisher.subscribe(resultStreamSubscriber);
 
             }
@@ -114,12 +103,12 @@ class SessionV2 {
     }
 
     private void send(CommandStream command) {
-        System.out.println("Sending " + command);
+        System.out.println(Thread.currentThread().getName() + " Sending " + command);
         commandStreamSubject.onNext(command);
     }
 
     CompletableFuture<Void> startConnection() {
-        System.out.println("Start connection...");
+        System.out.println(Thread.currentThread().getName() + "Start connection...");
 
         CompletableFuture<Void> future = connect();
 
@@ -130,7 +119,6 @@ class SessionV2 {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
         return future;
     }
 
@@ -139,9 +127,8 @@ class SessionV2 {
         try {
             final StartTransactionRequest startTransactionRequest = CommandStream.startTransactionBuilder().build();
             send(startTransactionRequest);
-
             CommandResult commandResult = resultStreamSubscriber.waitForResult();
-            System.out.println("Got command result: " + commandResult);
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + commandResult);
             return commandResult.startTransaction();
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -173,58 +160,69 @@ class SessionV2 {
             }
         }
 
-        final ExecuteStatementRequest executeStatementRequest = CommandStream.executeStatementBuilder()
-                .statement(statement)
-                .parameters(byteParameters)
-                .transactionId(txnId)
-                .build();
-        send(executeStatementRequest);
-        CommandResult commandResult = null;
         try {
-            commandResult = resultStreamSubscriber.waitForResult();
+            final ExecuteStatementRequest executeStatementRequest = CommandStream.executeStatementBuilder()
+                    .statement(statement)
+                    .parameters(byteParameters)
+                    .transactionId(txnId)
+                    .build();
+            send(executeStatementRequest);
+            CommandResult commandResult = resultStreamSubscriber.waitForResult();
+            System.out.println(Thread.currentThread().getName() + ": Got command response: " + commandResult);
+            return commandResult.executeStatement();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            return null;
         }
-        assert commandResult != null;
-        return commandResult.executeStatement();
     }
 
-    FetchPageResult sendFetchPage(String txnId, String nextPageToken) {
-        final FetchPageRequest fetchPageRequest = FetchPageRequest.builder()
-                .transactionId(txnId)
-                .nextPageToken(nextPageToken)
-                .build();
+//    FetchPageResult sendFetchPage(String txnId, String nextPageToken) {
+//        final FetchPageRequest fetchPageRequest = FetchPageRequest.builder()
+//                .transactionId(txnId)
+//                .nextPageToken(nextPageToken)
+//                .build();
+//
+//        send(fetchPageRequest);
+//        CommandResult commandResult = null;
+//        try {
+//            commandResult = resultStreamSubscriber.waitForResult();
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//        assert commandResult != null;
+//        return commandResult.fetchPage();
+//    }
 
-        send(fetchPageRequest);
-        CommandResult commandResult = null;
+    FetchPageResult startFetchPage(String txnId, String nextPageToken) {
         try {
-            commandResult = resultStreamSubscriber.waitForResult();
+            resultStreamSubscriber.subscription.request(1);
+            CommandResult commandResult = resultStreamSubscriber.waitForResult();
+            System.out.println(Thread.currentThread().getName() + ": Got command response: " + commandResult);
+            return commandResult.fetchPage();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            return null;
         }
-        assert commandResult != null;
-        return commandResult.fetchPage();
     }
 
     CommitTransactionResult sendCommit(String txnId, ByteBuffer transactionDigest) {
-        final CommitTransactionRequest commitTransactionRequest = CommitTransactionRequest.builder()
-                .transactionId(txnId)
-                .commitDigest(SdkBytes.fromByteBuffer(transactionDigest))
-                .build();
-
-        send(commitTransactionRequest);
-        CommandResult commandResult = null;
         try {
-            commandResult = resultStreamSubscriber.waitForResult();
+            final CommitTransactionRequest commitTransactionRequest = CommandStream.commitTransactionBuilder()
+                    .transactionId(txnId)
+                    .commitDigest(SdkBytes.fromByteBuffer(transactionDigest))
+                    .build();
+            send(commitTransactionRequest);
+            CommandResult commandResult = resultStreamSubscriber.waitForResult();
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + commandResult);
+            return commandResult.commitTransaction();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            return null;
         }
-        assert commandResult != null;
-        return commandResult.commitTransaction();
     }
 
     AbortTransactionResult sendAbort() {
-        final AbortTransactionRequest abortTransactionRequest = AbortTransactionRequest.builder().build();
+        final AbortTransactionRequest abortTransactionRequest = CommandStream.abortTransactionBuilder().build();
 
         send(abortTransactionRequest);
         CommandResult commandResult = null;
@@ -243,7 +241,7 @@ class SessionV2 {
         send(endSessionRequest);
             try {
                 CommandResult commandResult = resultStreamSubscriber.waitForResult();
-                System.out.println("Got command result: " + commandResult);
+                System.out.println(Thread.currentThread().getName() + " Got command response: " + commandResult);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

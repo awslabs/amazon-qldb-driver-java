@@ -24,6 +24,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static software.amazon.qldb.MockResponses.SESSION_TOKEN;
 
+import com.amazon.ion.IonList;
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
@@ -36,6 +37,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 
 public class QldbSessionTest {
     private static final String LEDGER = "myLedger";
@@ -70,6 +72,39 @@ public class QldbSessionTest {
         mockSession = new SessionV2(LEDGER, client);
         mockSession.startConnection();
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
+    }
+
+    @Test
+    @DisplayName("execute with response - SHOULD return multiple results WHEN QLDB executes a transaction without FetchPage")
+    public void testExecuteStatementMultipleResult() throws IOException {
+        queueTxnExecCommitMultipleResults(ionList, statement, Collections.emptyList());
+
+        Result bufferedResult = qldbSession.execute(txnExecutor -> txnExecutor.execute(statement));
+
+        List<IonValue> expectedValues = new ArrayList<>();
+        for (int i = 0; i < 4; i ++) {
+            expectedValues.add(system.newString("a"));
+            expectedValues.add(system.newString("b"));
+        }
+        assertEquals(expectedValues, bufferedResult.getCurrentValues());
+    }
+
+    @Test
+    @DisplayName("execute with response - SHOULD return result of a single statement WHEN QLDB executes a transaction without FetchPage")
+    public void testExecuteStatementSingleResult() throws IOException {
+        queueTxnExecCommitMultipleResults(ionList, statement, Collections.emptyList());
+
+        qldbSession.execute(txnExecutor -> {
+            Result streamResult = txnExecutor.execute(statement);
+            List<IonValue> expectedValues = new ArrayList<>();
+            for (int i = 0; i < 4; i ++) {
+                expectedValues.add(system.newString("a"));
+                expectedValues.add(system.newString("b"));
+            }
+            assertEquals(expectedValues, streamResult.getCurrentValues());
+
+            return streamResult;
+        });
     }
 
     @Test
@@ -295,6 +330,18 @@ public class QldbSessionTest {
         txnHash = Transaction.dot(txnHash, statement, parameters, system);
         client.queueResult(MockResponses.startTxnResponse(txnId));
         client.queueResult(MockResponses.executeResponse(values));
+        client.queueResult(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
+    }
+
+    private void queueTxnExecCommitMultipleResults(List<IonValue> values, String statement, List<IonValue> parameters) throws IOException {
+        String txnId = "id";
+        QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
+        txnHash = Transaction.dot(txnHash, statement, parameters, system);
+        client.queueResult(MockResponses.startTxnResponse(txnId));
+        client.queueResult(MockResponses.executeResponseWithNextPageToken(values));
+        client.queueResult(MockResponses.fetchPageResponse(values));
+        client.queueResult(MockResponses.fetchPageResponse(values));
+        client.queueResult(MockResponses.fetchPageResponseWithOutNextPageToken(values));
         client.queueResult(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
     }
 

@@ -31,6 +31,7 @@ import software.amazon.awssdk.services.qldbsessionv2.model.CommandResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.EndSessionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.Page;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponse;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
@@ -79,6 +80,27 @@ public class MockResponses {
         final ExecuteStatementResult result = ExecuteStatementResult.builder()
                                                                     .firstPage(page).build();
         return CommandResult.builder().executeStatement(result).build();
+    }
+
+    public static CommandResult executeResponseWithNextPageToken(List<IonValue> results) throws IOException {
+        final Page page = Page.builder().nextPageToken("nextPageToken").values(createByteValues(results)).build();
+        final ExecuteStatementResult result = ExecuteStatementResult.builder()
+                .firstPage(page).build();
+        return CommandResult.builder().executeStatement(result).build();
+    }
+
+    public static CommandResult fetchPageResponseWithOutNextPageToken(List<IonValue> results) throws IOException {
+        final Page page = Page.builder().nextPageToken(null).values(createByteValues(results)).build();
+        final FetchPageResult result = FetchPageResult.builder().page(page).build();
+
+        return CommandResult.builder().fetchPage(result).build();
+    }
+
+    public static CommandResult fetchPageResponse(List<IonValue> results) throws IOException {
+        final Page page = Page.builder().nextPageToken("nextPageToken").values(createByteValues(results)).build();
+        final FetchPageResult result = FetchPageResult.builder().page(page).build();
+
+        return CommandResult.builder().fetchPage(result).build();
     }
 
     public static CommandResult startTxnResponse(String id) {

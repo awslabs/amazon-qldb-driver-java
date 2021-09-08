@@ -8,24 +8,32 @@ import java.util.concurrent.TimeUnit;
 
 class ResultStreamSubscriber extends SyncSubscriber<ResultStream> {
 
-    private final LinkedBlockingQueue<CommandResult> results;
+    private final LinkedBlockingQueue<CommandResult> commandResults;
 
-    ResultStreamSubscriber() {
-        this.results = new LinkedBlockingQueue<>();
+    protected ResultStreamSubscriber() {
+        this.commandResults = new LinkedBlockingQueue<>();
     }
 
-
     CommandResult waitForResult() throws InterruptedException {
-        CommandResult result = results.poll(5000L, TimeUnit.MILLISECONDS);
+        CommandResult result = commandResults.poll(5000L, TimeUnit.MILLISECONDS);
         if (result == null) {
-            System.out.println("Timeout waiting for result.");
+            System.out.println(Thread.currentThread().getName() + "Timeout waiting for result.");
         }
+        System.out.println(Thread.currentThread().getName() + " Result Stream Subscriber: poll response " + result + " from queue");
         return result;
     }
 
 
-    @Override
     protected void whenReceived(ResultStream resultStream) {
-        results.offer((CommandResult) resultStream);
+        CommandResult commandResult = (CommandResult) resultStream;
+
+        if (commandResult.fetchPage() != null) {
+
+        }
+
+        commandResults.offer(commandResult);
+        subscription.request(1);
+
     }
+
 }

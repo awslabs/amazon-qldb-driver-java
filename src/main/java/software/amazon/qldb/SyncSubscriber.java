@@ -3,13 +3,13 @@ package software.amazon.qldb;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-abstract class SyncSubscriber<T> implements Subscriber<T> {
+public abstract class SyncSubscriber<T> implements Subscriber<T> {
     Subscription subscription;
     private boolean done;
 
     @Override
     public void onSubscribe(Subscription s) {
-        System.out.println("Subscriber: On subscribe ");
+        System.out.println(Thread.currentThread().getName() + " Subscriber: On subscribe ");
 
         // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `Subscription` is `null`
         if (s == null) throw null;
@@ -38,7 +38,7 @@ abstract class SyncSubscriber<T> implements Subscriber<T> {
 
     @Override
     public void onNext(T element) {
-        System.out.println("Subscriber: Received event " + element);
+        System.out.println(Thread.currentThread().getName() + " Subscriber: Received event " + element);
 
         if (subscription == null) { // Technically this check is not needed, since we are expecting Publishers to conform to the spec
             (new IllegalStateException("Publisher violated the Reactive Streams rule 1.09 signalling onNext prior to onSubscribe.")).printStackTrace(System.err);
@@ -50,7 +50,6 @@ abstract class SyncSubscriber<T> implements Subscriber<T> {
                 try {
                     try {
                         whenReceived(element);
-                        subscription.request(1); // Our Subscriber is unbuffered and modest, it requests one element at a time
                     } catch (final Throwable t) {
                             // Subscription.request is not allowed to throw according to rule 3.16
                         (new IllegalStateException(subscription + " violated the Reactive Streams rule 3.16 by throwing an exception from request.", t)).printStackTrace(System.err);
@@ -96,6 +95,7 @@ abstract class SyncSubscriber<T> implements Subscriber<T> {
         }
     }
 
+    // Called in onNext()
     protected abstract void whenReceived(final T element) throws InterruptedException;
 
     // Idempotently marking the Subscriber as "done", so we don't want to process more elements

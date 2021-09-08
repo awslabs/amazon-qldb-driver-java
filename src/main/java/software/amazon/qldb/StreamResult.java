@@ -15,7 +15,10 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
+
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -94,6 +97,14 @@ class StreamResult implements Result {
     @Override
     public TimingInformation getTimingInformation() {
         return childItr.retriever.getTimingInformation();
+    }
+
+    // TODO: Remove the getter.
+    @Override
+    public List<IonValue> getCurrentValues() {
+        List<IonValue> chunk = new ArrayList<>();
+        childItr.forEachRemaining(chunk::add);
+        return chunk;
     }
 
     @Override

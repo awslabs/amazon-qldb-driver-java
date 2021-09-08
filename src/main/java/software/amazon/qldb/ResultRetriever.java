@@ -211,7 +211,7 @@ class ResultRetriever {
          * @throws QldbDriverException if an unexpected error occurs during result retrieval.
          */
         Page getNextPage() {
-            final FetchPageResult fetchPageResult = session.sendFetchPage(txnId, nextPageToken);
+            final FetchPageResult fetchPageResult = session.startFetchPage(txnId, nextPageToken);
             updateMetrics(fetchPageResult);
 
             final Page page = fetchPageResult.page();

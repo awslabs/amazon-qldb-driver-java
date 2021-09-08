@@ -37,71 +37,66 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.reactivestreams.Publisher;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.qldbsession.model.SendCommandRequest;
 import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
 import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.CommandResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.CommandStream;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
-import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponse;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHandler;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
-//public class SessionTest {
-//    private static final String MOCK_LEDGER_NAME = "ledger";
-//    private static final String MOCK_SESSION_TOKEN = "token";
-//    private static final String MOCK_REQUEST_ID = "requestId";
-//    private static final String MOCK_TXN_ID = "txnId";
-//    private static final String MOCK_STATEMENT = "SELECT * FROM foo";
-//    private static final String MOCK_NEXT_PAGE_TOKEN = "nextResultToken";
-//    private static final SdkBytes MOCK_TXN_DIGEST = SdkBytes.fromByteBuffer(ByteBuffer.wrap("foo".getBytes()));
-//
-//    @Mock
-//    private QldbSessionV2AsyncClient mockClient;
-//
-//    @Mock
-//    private PublishSubject<CommandStream> mockCommandStreamPublishSubject;
-//
-//    @Mock
-//    private SendCommandRequest mockSendCommandRequest;
-//
-//    @Mock
-//    private SendCommandResponseHandler mockSendCommandResponseHandler;
-//
-//    @Mock
-//    private CommandResult mockCommandResult;
-//
-//    @Mock
-//    private CommitTransactionResult mockCommitTransactionResult;
-//
-//    @Mock
-//    private StartTransactionResult mockStartTransactionResult;
-//
-//    @Mock
-//    private ExecuteStatementResult mockExecuteStatementResult;
-//
-//    @Mock
-//    private FetchPageResult mockFetchPageResult;
-//
-//    @Mock
-//    private AbortTransactionResult mockAbortTransactionResult;
-//
-//    @Mock
-//    private final IonValue mockIonValue = Mockito.mock(IonValue.class);
-//
-//
-//    @BeforeEach
-//    public void init() {
-//        MockitoAnnotations.initMocks(this);
-//        Mockito.when(mockClient.sendCommand(mockSendCommandRequest, mockCommandStreamPublishSubject.toFlowable(BackpressureStrategy.ERROR), mockSendCommandResponseHandler)).thenReturn(mockSendCommandFuture);
-//        Mockito.when(mockCommandResult.abortTransaction()).thenReturn(mockAbortTransactionResult);
-//        Mockito.when(mockCommandResult.commitTransaction()).thenReturn(mockCommitTransactionResult);
-//    }
-//
+public class SessionTest {
+    private static final String MOCK_LEDGER_NAME = "ledger";
+    private static final String MOCK_SESSION_TOKEN = "token";
+    private static final String MOCK_REQUEST_ID = "requestId";
+    private static final String MOCK_TXN_ID = "txnId";
+    private static final String MOCK_STATEMENT = "SELECT * FROM foo";
+    private static final String MOCK_NEXT_PAGE_TOKEN = "nextResultToken";
+    private static final SdkBytes MOCK_TXN_DIGEST = SdkBytes.fromByteBuffer(ByteBuffer.wrap("foo".getBytes()));
+
+    @Mock
+    private QldbSessionV2AsyncClient mockClient;
+
+    @Mock
+    private CommandResult mockCommandResult;
+
+    @Mock
+    private ResultStreamSubscriber mockResultStreamSubscriber;
+
+    @Mock
+    private CommitTransactionResult mockCommitTransactionResult;
+
+    @Mock
+    private StartTransactionResult mockStartTransactionResult;
+
+    @Mock
+    private ExecuteStatementResult mockExecuteStatementResult;
+
+    @Mock
+    private FetchPageResult mockFetchPageResult;
+
+    @Mock
+    private AbortTransactionResult mockAbortTransactionResult;
+
+    @Mock
+    private final IonValue mockIonValue = Mockito.mock(IonValue.class);
+
+
+    @BeforeEach
+    public void init() throws InterruptedException {
+        MockitoAnnotations.initMocks(this);
+        Mockito.when(mockResultStreamSubscriber.waitForResult()).thenReturn(mockCommandResult);
+        Mockito.when(mockCommandResult.abortTransaction()).thenReturn(mockAbortTransactionResult);
+        Mockito.when(mockCommandResult.commitTransaction()).thenReturn(mockCommitTransactionResult);
+    }
+
 //    @Test
 //    public void testSendAbort() {
 //        final ArgumentCaptor<SendCommandRequest> sendCommandRequestArgumentCaptor = ArgumentCaptor.forClass(SendCommandRequest.class);
@@ -120,7 +115,7 @@ import software.amazon.qldb.exceptions.QldbDriverException;
 //        assertEquals(sendCommandRequest, sendCommandRequestArgumentCaptor.getValue());
 //        assertEquals(abortTransactionRequest, commandStreamArgumentCaptor.getValue());
 //    }
-
+//
 //    @Test
 //    public void testSendCommit() {
 //        final ArgumentCaptor<SendCommandRequest> commandCaptor = ArgumentCaptor.forClass(SendCommandRequest.class);
@@ -299,4 +294,4 @@ import software.amazon.qldb.exceptions.QldbDriverException;
 //        Mockito.verify(mockClient, Mockito.times(3))
 //               .sendCommand(ArgumentMatchers.any(SendCommandRequest.class));
 //    }
-//}
+}

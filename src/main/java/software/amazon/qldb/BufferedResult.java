@@ -77,4 +77,9 @@ class BufferedResult implements Result {
     public Iterator<IonValue> iterator() {
         return bufferedValues.iterator();
     }
+
+    // TODO: Remove the getter
+    @Override
+    public List<IonValue> getCurrentValues() { return bufferedValues; }
+
 }
