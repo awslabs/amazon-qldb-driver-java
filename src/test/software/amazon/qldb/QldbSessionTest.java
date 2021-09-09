@@ -82,7 +82,7 @@ public class QldbSessionTest {
 
     @Test
     @DisplayName("execute with response - SHOULD return buffered results WHEN QLDB executes a transaction without FetchPage")
-    public void testExecuteStatementMultipleResult() throws IOException {
+    public void testExecuteStatementBufferedResult() throws IOException {
         queueTxnExecCommitMultipleResults(ionList, statement, Collections.emptyList());
 
         Result bufferedResult = qldbSession.execute(txnExecutor -> txnExecutor.execute(statement));
@@ -97,7 +97,7 @@ public class QldbSessionTest {
 
     @Test
     @DisplayName("execute with response - SHOULD return stream result WHEN QLDB executes a statement without FetchPage")
-    public void testExecuteStatementSingleResult() throws IOException {
+    public void testExecuteStatementStreamResult() throws IOException {
         queueTxnExecCommitMultipleResults(ionList, statement, Collections.emptyList());
 
         qldbSession.execute(txnExecutor -> {
@@ -115,7 +115,7 @@ public class QldbSessionTest {
 
     @Test
     @DisplayName("execute with response - SHOULD return stream result WHEN QLDB executes multiple statements without FetchPage")
-    public void testMultipleExecute() throws IOException {
+    public void testMultipleExecuteStreamResult() throws IOException {
         queueTxnMultipleExecCommitMutipleResults(ionList, ionList2, statement, Collections.emptyList());
         List<IonValue> expectedValues1 = new ArrayList<>();
         for (int i = 0; i < 4; i ++) {
@@ -136,6 +136,25 @@ public class QldbSessionTest {
             assertEquals(expectedValues1, streamResult1.getCurrentValues());
             return null;
         });
+    }
+
+    @Test
+    @DisplayName("execute with response - SHOULD return buffered result WHEN QLDB executes multiple statements without FetchPage")
+    public void testMultipleExecuteBufferedResult() throws IOException {
+        queueTxnMultipleExecCommitMutipleResults(ionList, ionList2, statement, Collections.emptyList());
+        List<IonValue> expectedValues = new ArrayList<>();
+        for (int i = 0; i < 4; i ++) {
+            expectedValues.add(system.newString("a"));
+            expectedValues.add(system.newString("b"));
+        }
+
+        Result result = qldbSession.execute(txnExecutor -> {
+            Result streamResult1 = txnExecutor.execute(statement);
+            txnExecutor.execute(statement);
+
+            return streamResult1;
+        });
+        assertEquals(expectedValues, result.getCurrentValues());
     }
 
 //    @Test

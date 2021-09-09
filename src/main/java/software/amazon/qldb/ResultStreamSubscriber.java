@@ -15,6 +15,7 @@ class ResultStreamSubscriber extends SyncSubscriber<ResultStream> {
     private final LinkedBlockingQueue<CommandResult> commandResults;
     // A map between the next page token of first page and following pages
     private final Map<String, LinkedBlockingQueue<FetchPageResult>> pagesBuffer;
+    private CommandResult lastResult;
 
     protected ResultStreamSubscriber() {
         this.commandResults = new LinkedBlockingQueue<>();
@@ -40,27 +41,23 @@ class ResultStreamSubscriber extends SyncSubscriber<ResultStream> {
     }
 
     protected void whenReceived(ResultStream resultStream) {
-        CommandResult latestResult = null;
-        if (commandResults.size() > 0) {
-            latestResult = (CommandResult) commandResults.toArray()[commandResults.size() - 1];
-        }
+
         CommandResult commandResult = (CommandResult) resultStream;
         // If the result received is FetchPageResult, buffer all the following pages.
         if (commandResult.fetchPage() != null) {
-            if (latestResult != null && latestResult.executeStatement() != null) {
-                enqueuePage(latestResult.executeStatement(), commandResult.fetchPage());
+            if (lastResult != null && lastResult.executeStatement() != null) {
+                enqueuePage(lastResult.executeStatement().firstPage().nextPageToken(), commandResult.fetchPage());
             }
         } else {
             commandResults.offer(commandResult);
+            lastResult = commandResult;
         }
-        System.out.println("lastResult: " + latestResult);
-        System.out.println("Buffer: " + pagesBuffer);
-        System.out.println("CommandsQueue: " + commandResults);
+        System.out.println(Thread.currentThread().getName() + " Last result: " + lastResult);
+        System.out.println(Thread.currentThread().getName() + " Pages buffer: " + pagesBuffer);
         subscription.request(1);
     }
 
-    private void enqueuePage(ExecuteStatementResult executeResult, FetchPageResult page) {
-        String nextPageToken = executeResult.firstPage().nextPageToken();
+    private void enqueuePage(String nextPageToken, FetchPageResult page) {
         if (pagesBuffer.get(nextPageToken) != null) {
             pagesBuffer.get(nextPageToken).offer(page);
         } else {
