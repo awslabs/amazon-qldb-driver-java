@@ -19,6 +19,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -45,6 +46,7 @@ class ResultRetriever {
     private final SessionV2 session;
     private Page currentPage;
     private int currentResultValueIndex;
+    LinkedBlockingQueue<FetchPageResult> fetchedPages;
 
     private final Retriever retriever;
     private final IonSystem ionSystem;
@@ -88,10 +90,12 @@ class ResultRetriever {
         if (currentPage.nextPageToken() == null) {
             this.retriever = null;
         } else if (0 == readAhead) {
-            this.retriever = new Retriever(session, txnId, currentPage.nextPageToken(), ioUsage, timingInfo);
+            this.fetchedPages = session.fetchPages(currentPage.nextPageToken());
+            this.retriever = new Retriever(session, txnId, fetchedPages, ioUsage, timingInfo);
         } else {
+            this.fetchedPages = session.fetchPages(currentPage.nextPageToken());
             final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId,
-                    currentPage.nextPageToken(), readAhead, isClosed, ioUsage, timingInfo);
+                    fetchedPages, readAhead, isClosed, ioUsage, timingInfo);
             this.retriever = runner;
 
             if (null == executorService) {
@@ -174,7 +178,7 @@ class ResultRetriever {
      */
     private static class Retriever {
         final SessionV2 session;
-        String nextPageToken;
+        final LinkedBlockingQueue<FetchPageResult> pages;
         private final String txnId;
 
         private Long accumulatedReadIOs;
@@ -188,17 +192,15 @@ class ResultRetriever {
          *              The parent session to use in retrieving results.
          * @param txnId
          *              The unique ID of the transaction.
-         * @param nextPageToken
-         *              The unique token identifying the next chunk of data to fetch for this result set.
          * @param ioUsage
          *              The initial IOUsage from the statement execution.
          * @param timingInfo
          *              The initial TimingInformation from the statement execution.
          */
-        private Retriever(SessionV2 session, String txnId, String nextPageToken, IOUsage ioUsage, TimingInformation timingInfo) {
+        private Retriever(SessionV2 session, String txnId, LinkedBlockingQueue<FetchPageResult> pages, IOUsage ioUsage, TimingInformation timingInfo) {
             this.session = session;
             this.txnId = txnId;
-            this.nextPageToken = nextPageToken;
+            this.pages = pages;
             this.accumulatedReadIOs = (ioUsage != null) ? ioUsage.getReadIOs() : null;
             this.accumulatedWriteIOs = (ioUsage != null) ? ioUsage.getWriteIOs() : null;
             this.accumulatedProcessingTimeMilliseconds = (timingInfo != null) ? timingInfo.getProcessingTimeMilliseconds() : null;
@@ -211,12 +213,11 @@ class ResultRetriever {
          * @throws QldbDriverException if an unexpected error occurs during result retrieval.
          */
         Page getNextPage() {
-            final FetchPageResult fetchPageResult = session.startFetchPage(txnId, nextPageToken);
+            final FetchPageResult fetchPageResult = pages.poll();
+            assert fetchPageResult != null;
             updateMetrics(fetchPageResult);
 
-            final Page page = fetchPageResult.page();
-            nextPageToken = page.nextPageToken();
-            return page;
+            return fetchPageResult.page();
         }
 
         /**
@@ -298,8 +299,6 @@ class ResultRetriever {
          *              The parent session to use in retrieving results.
          * @param txnId
          *              The unique ID of the transaction.
-         * @param nextPageToken
-         *              The unique token identifying the next chunk of data to fetch for this result set.
          * @param readAhead
          *              The maximum number of chunks of data to buffer at any one time.
          * @param isClosed
@@ -309,9 +308,9 @@ class ResultRetriever {
          * @param timingInfo
          *              The initial TimingInformation from the statement execution.
          */
-        ResultRetrieverRunnable(SessionV2 session, String txnId, String nextPageToken, int readAhead,
+        ResultRetrieverRunnable(SessionV2 session, String txnId, LinkedBlockingQueue<FetchPageResult> pages ,int readAhead,
                                 AtomicBoolean isClosed, IOUsage ioUsage, TimingInformation timingInfo) {
-            super(session, txnId, nextPageToken, ioUsage, timingInfo);
+            super(session, txnId, pages, ioUsage, timingInfo);
             this.readAhead = Math.min(1, readAhead - 1);
             this.results = new LinkedBlockingDeque<>(readAhead);
             this.isClosed = isClosed;
@@ -320,7 +319,7 @@ class ResultRetriever {
         @Override
         public void run() {
             try {
-                while (null != nextPageToken) {
+                while (!pages.isEmpty()) {
                     final Page page = super.getNextPage();
                     try {
                         while (!results.offer(new ResultHolder(page), 50, TimeUnit.MILLISECONDS)) {

@@ -47,6 +47,7 @@ public class QldbSessionTest {
     private QldbSession qldbSession;
     private IonSystem system;
     private List<IonValue> ionList;
+    private List<IonValue> ionList2;
     private String statement;
     private SessionV2 mockSession;
     BackoffStrategy txnBackoff;
@@ -66,6 +67,11 @@ public class QldbSessionTest {
         ionList = new ArrayList<>(2);
         ionList.add(system.newString("a"));
         ionList.add(system.newString("b"));
+
+        ionList2 = new ArrayList<>(2);
+        ionList2.add(system.newString("c"));
+        ionList2.add(system.newString("d"));
+
         statement = "select * from test";
 
         client = new MockQldbSessionClient();
@@ -75,7 +81,7 @@ public class QldbSessionTest {
     }
 
     @Test
-    @DisplayName("execute with response - SHOULD return multiple results WHEN QLDB executes a transaction without FetchPage")
+    @DisplayName("execute with response - SHOULD return buffered results WHEN QLDB executes a transaction without FetchPage")
     public void testExecuteStatementMultipleResult() throws IOException {
         queueTxnExecCommitMultipleResults(ionList, statement, Collections.emptyList());
 
@@ -90,7 +96,7 @@ public class QldbSessionTest {
     }
 
     @Test
-    @DisplayName("execute with response - SHOULD return result of a single statement WHEN QLDB executes a transaction without FetchPage")
+    @DisplayName("execute with response - SHOULD return stream result WHEN QLDB executes a statement without FetchPage")
     public void testExecuteStatementSingleResult() throws IOException {
         queueTxnExecCommitMultipleResults(ionList, statement, Collections.emptyList());
 
@@ -108,11 +114,36 @@ public class QldbSessionTest {
     }
 
     @Test
-    @DisplayName("close - SHOULD end session on QLDB WHEN closing the session")
-    public void testClose() {
-        client.queueResult(MockResponses.endSessionResponse());
-        qldbSession.close();
+    @DisplayName("execute with response - SHOULD return stream result WHEN QLDB executes multiple statements without FetchPage")
+    public void testMultipleExecute() throws IOException {
+        queueTxnMultipleExecCommitMutipleResults(ionList, ionList2, statement, Collections.emptyList());
+        List<IonValue> expectedValues1 = new ArrayList<>();
+        for (int i = 0; i < 4; i ++) {
+            expectedValues1.add(system.newString("a"));
+            expectedValues1.add(system.newString("b"));
+        }
+        List<IonValue> expectedValues2 = new ArrayList<>();
+        for (int i = 0; i < 4; i ++) {
+            expectedValues2.add(system.newString("c"));
+            expectedValues2.add(system.newString("d"));
+        }
+
+        qldbSession.execute(txnExecutor -> {
+            Result streamResult1 = txnExecutor.execute(statement);
+            Result streamResult2 = txnExecutor.execute(statement);
+
+            assertEquals(expectedValues2, streamResult2.getCurrentValues());
+            assertEquals(expectedValues1, streamResult1.getCurrentValues());
+            return null;
+        });
     }
+
+//    @Test
+//    @DisplayName("close - SHOULD end session on QLDB WHEN closing the session")
+//    public void testClose() {
+//        client.queueResult(MockResponses.endSessionResponse());
+//        qldbSession.close();
+//    }
 
 //    @Test
 //    @DisplayName("close - SHOULD close the session WHEN QLDB throws an exception when ending the session")
@@ -338,10 +369,29 @@ public class QldbSessionTest {
         QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
         txnHash = Transaction.dot(txnHash, statement, parameters, system);
         client.queueResult(MockResponses.startTxnResponse(txnId));
-        client.queueResult(MockResponses.executeResponseWithNextPageToken(values));
+        client.queueResult(MockResponses.executeResponseWithNextPageToken("nextPageToken", values));
         client.queueResult(MockResponses.fetchPageResponse(values));
-        client.queueResult(MockResponses.fetchPageResponse(values));
+        client.queueResult(MockResponses.fetchPageResponse( values));
         client.queueResult(MockResponses.fetchPageResponseWithOutNextPageToken(values));
+        client.queueResult(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
+    }
+
+    private void queueTxnMultipleExecCommitMutipleResults(List<IonValue> values1, List<IonValue> values2, String statement, List<IonValue> parameters) throws IOException {
+        String txnId = "id";
+        QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
+        txnHash = Transaction.dot(txnHash, statement, parameters, system);
+        client.queueResult(MockResponses.startTxnResponse(txnId));
+        client.queueResult(MockResponses.executeResponseWithNextPageToken("nextPageToken1", values1));
+        client.queueResult(MockResponses.fetchPageResponse( values1));
+        client.queueResult(MockResponses.fetchPageResponse(values1));
+        client.queueResult(MockResponses.fetchPageResponseWithOutNextPageToken(values1));
+
+        txnHash = Transaction.dot(txnHash, statement, parameters, system);
+        client.queueResult(MockResponses.executeResponseWithNextPageToken("nextPageToken2", values2));
+        client.queueResult(MockResponses.fetchPageResponse(values2));
+        client.queueResult(MockResponses.fetchPageResponse(values2));
+        client.queueResult(MockResponses.fetchPageResponseWithOutNextPageToken(values2));
+
         client.queueResult(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
     }
 

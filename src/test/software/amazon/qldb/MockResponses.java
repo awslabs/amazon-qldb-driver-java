@@ -82,8 +82,8 @@ public class MockResponses {
         return CommandResult.builder().executeStatement(result).build();
     }
 
-    public static CommandResult executeResponseWithNextPageToken(List<IonValue> results) throws IOException {
-        final Page page = Page.builder().nextPageToken("nextPageToken").values(createByteValues(results)).build();
+    public static CommandResult executeResponseWithNextPageToken(String token, List<IonValue> results) throws IOException {
+        final Page page = Page.builder().nextPageToken(token).values(createByteValues(results)).build();
         final ExecuteStatementResult result = ExecuteStatementResult.builder()
                 .firstPage(page).build();
         return CommandResult.builder().executeStatement(result).build();
@@ -97,7 +97,7 @@ public class MockResponses {
     }
 
     public static CommandResult fetchPageResponse(List<IonValue> results) throws IOException {
-        final Page page = Page.builder().nextPageToken("nextPageToken").values(createByteValues(results)).build();
+        final Page page = Page.builder().nextPageToken("fetchPageToken").values(createByteValues(results)).build();
         final FetchPageResult result = FetchPageResult.builder().page(page).build();
 
         return CommandResult.builder().fetchPage(result).build();

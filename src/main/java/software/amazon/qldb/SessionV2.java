@@ -193,16 +193,11 @@ class SessionV2 {
 //        return commandResult.fetchPage();
 //    }
 
-    FetchPageResult startFetchPage(String txnId, String nextPageToken) {
-        try {
-            resultStreamSubscriber.subscription.request(1);
-            CommandResult commandResult = resultStreamSubscriber.waitForResult();
-            System.out.println(Thread.currentThread().getName() + ": Got command response: " + commandResult);
-            return commandResult.fetchPage();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return null;
-        }
+    LinkedBlockingQueue<FetchPageResult> fetchPages(String nextPageToken) {
+        LinkedBlockingQueue<FetchPageResult> results = resultStreamSubscriber.getPages(nextPageToken);
+
+        System.out.println(Thread.currentThread().getName() + ": Got pages from buffer: " + results);
+        return results;
     }
 
     CommitTransactionResult sendCommit(String txnId, ByteBuffer transactionDigest) {
