@@ -46,7 +46,6 @@ class ResultRetriever {
     private final SessionV2 session;
     private Page currentPage;
     private int currentResultValueIndex;
-    LinkedBlockingQueue<FetchPageResult> fetchedPages;
 
     private final Retriever retriever;
     private final IonSystem ionSystem;
@@ -87,15 +86,13 @@ class ResultRetriever {
         this.timingInfo = timingInfo;
 
         // Start the retriever thread if there are more chunks to retrieve.
-        if (currentPage.nextPageToken() == null) {
+        if (firstPage.nextPageToken() == null) {
             this.retriever = null;
         } else if (0 == readAhead) {
-            this.fetchedPages = session.fetchPages(currentPage.nextPageToken());
-            this.retriever = new Retriever(session, txnId, fetchedPages, ioUsage, timingInfo);
+            this.retriever = new Retriever(session, txnId, firstPage.nextPageToken(), ioUsage, timingInfo);
         } else {
-            this.fetchedPages = session.fetchPages(currentPage.nextPageToken());
             final ResultRetrieverRunnable runner = new ResultRetrieverRunnable(session, txnId,
-                    fetchedPages, readAhead, isClosed, ioUsage, timingInfo);
+                    firstPage.nextPageToken(), readAhead, isClosed, ioUsage, timingInfo);
             this.retriever = runner;
 
             if (null == executorService) {
@@ -192,15 +189,17 @@ class ResultRetriever {
          *              The parent session to use in retrieving results.
          * @param txnId
          *              The unique ID of the transaction.
+         * @param nextPageToken
+         *              The unique token identifying the next chunk of data to fetch for this result set.
          * @param ioUsage
          *              The initial IOUsage from the statement execution.
          * @param timingInfo
          *              The initial TimingInformation from the statement execution.
          */
-        private Retriever(SessionV2 session, String txnId, LinkedBlockingQueue<FetchPageResult> pages, IOUsage ioUsage, TimingInformation timingInfo) {
+        private Retriever(SessionV2 session, String txnId, String nextPageToken, IOUsage ioUsage, TimingInformation timingInfo) {
             this.session = session;
             this.txnId = txnId;
-            this.pages = pages;
+            this.pages = session.fetchPages(nextPageToken);
             this.accumulatedReadIOs = (ioUsage != null) ? ioUsage.getReadIOs() : null;
             this.accumulatedWriteIOs = (ioUsage != null) ? ioUsage.getWriteIOs() : null;
             this.accumulatedProcessingTimeMilliseconds = (timingInfo != null) ? timingInfo.getProcessingTimeMilliseconds() : null;
@@ -299,6 +298,8 @@ class ResultRetriever {
          *              The parent session to use in retrieving results.
          * @param txnId
          *              The unique ID of the transaction.
+         * @param nextPageToken
+         *              The unique token identifying the next chunk of data to fetch for this result set.
          * @param readAhead
          *              The maximum number of chunks of data to buffer at any one time.
          * @param isClosed
@@ -308,9 +309,9 @@ class ResultRetriever {
          * @param timingInfo
          *              The initial TimingInformation from the statement execution.
          */
-        ResultRetrieverRunnable(SessionV2 session, String txnId, LinkedBlockingQueue<FetchPageResult> pages ,int readAhead,
+        ResultRetrieverRunnable(SessionV2 session, String txnId, String nextPageToken ,int readAhead,
                                 AtomicBoolean isClosed, IOUsage ioUsage, TimingInformation timingInfo) {
-            super(session, txnId, pages, ioUsage, timingInfo);
+            super(session, txnId, nextPageToken, ioUsage, timingInfo);
             this.readAhead = Math.min(1, readAhead - 1);
             this.results = new LinkedBlockingDeque<>(readAhead);
             this.isClosed = isClosed;

@@ -13,7 +13,7 @@
 
 package software.amazon.qldb.exceptions;
 
-import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
+import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 
 /**
  * Exception used to represent all types of failures that can be thrown by the driver
@@ -22,7 +22,7 @@ import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
  * of a transaction due to a client-side problem.
  *
  */
-public class QldbDriverException extends QldbSessionException {
+public class QldbDriverException extends QldbSessionV2Exception {
     private static String TXN_TOKEN_PREFIX = System.lineSeparator() + "TransactionId: ";
 
     /**
@@ -34,7 +34,7 @@ public class QldbDriverException extends QldbSessionException {
      *              The cause of this exception.
      */
     protected QldbDriverException(Throwable cause) {
-        super(QldbSessionException.builder().cause(cause));
+        super(QldbSessionV2Exception.builder().cause(cause));
     }
 
     /**
@@ -46,7 +46,7 @@ public class QldbDriverException extends QldbSessionException {
      *              The message for this exception.
      */
     protected QldbDriverException(String message) {
-        super(QldbSessionException.builder().message(message));
+        super(QldbSessionV2Exception.builder().message(message));
     }
 
     /**
@@ -60,7 +60,7 @@ public class QldbDriverException extends QldbSessionException {
      *              The cause of this exception.
      */
     protected QldbDriverException(String message, Throwable cause) {
-        super(QldbSessionException.builder().message(message).cause(cause));
+        super(QldbSessionV2Exception.builder().message(message).cause(cause));
     }
 
     /**

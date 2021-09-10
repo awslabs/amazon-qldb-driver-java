@@ -4,6 +4,7 @@ import software.amazon.awssdk.services.qldbsessionv2.model.CommandResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
+import software.amazon.qldb.exceptions.QldbDriverException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,6 +38,9 @@ class ResultStreamSubscriber extends SyncSubscriber<ResultStream> {
     }
 
     LinkedBlockingQueue<FetchPageResult> getPages(String nextPageToken) {
+        if (!pagesBuffer.containsKey(nextPageToken)) {
+            throw QldbDriverException.create("Incorrect page token");
+        }
         return pagesBuffer.get(nextPageToken);
     }
 
