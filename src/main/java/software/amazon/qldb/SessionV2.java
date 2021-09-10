@@ -7,7 +7,7 @@ import io.reactivex.rxjava3.core.BackpressureStrategy;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.annotations.ThreadSafe;
+import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -22,7 +22,6 @@ import software.amazon.awssdk.services.qldbsessionv2.model.EndSessionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.EndSessionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandRequest;
@@ -49,7 +48,7 @@ import java.util.concurrent.TimeUnit;
  *
  * This object is thread-safe.
  */
-@ThreadSafe
+@NotThreadSafe
 class SessionV2 {
     private static final Logger logger = LoggerFactory.getLogger(SessionV2.class);
     private final String ledgerName;
