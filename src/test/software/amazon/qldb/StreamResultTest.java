@@ -34,10 +34,10 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
-import software.amazon.awssdk.services.qldbsession.model.Page;
-import software.amazon.awssdk.services.qldbsession.model.ValueHolder;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
 
 public class StreamResultTest {
     private static final IonSystem SYSTEM = IonSystemBuilder.standard().build();
@@ -72,16 +72,16 @@ public class StreamResultTest {
     private Page mockFetchPage;
 
     @Mock
-    private software.amazon.awssdk.services.qldbsession.model.IOUsage mockExecuteIOUsage;
+    private software.amazon.awssdk.services.qldbsessionv2.model.IOUsage mockExecuteIOUsage;
 
     @Mock
-    private software.amazon.awssdk.services.qldbsession.model.TimingInformation mockExecuteTimingInfo;
+    private software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation mockExecuteTimingInfo;
 
     @Mock
-    private software.amazon.awssdk.services.qldbsession.model.IOUsage mockFetchIOUsage;
+    private software.amazon.awssdk.services.qldbsessionv2.model.IOUsage mockFetchIOUsage;
 
     @Mock
-    private software.amazon.awssdk.services.qldbsession.model.TimingInformation mockFetchTimingInfo;
+    private software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation mockFetchTimingInfo;
 
     @BeforeEach
     public void init() {

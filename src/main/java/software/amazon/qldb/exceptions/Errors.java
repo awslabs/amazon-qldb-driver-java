@@ -28,11 +28,18 @@ public enum Errors {
     RETRIEVE_INTERRUPTED,   // illegal state
     RESULT_PARENT_INACTIVE, // illegal state
     STREAM_RESULT_ITERATED, // illegal state
+    CREATE_SESSION_INTERRUPTED, // illegal state
+    GET_COMMAND_RESULT_INTERRUPTED, // illegal state
+    GET_CONNECTION_INTERRUPTED, // illegal state
+    SUBSCRIBER_ILLEGAL, // illegal state
 
     NO_SESSION_AVAILABLE,   // driver problem
     TXN_DIGEST_MISMATCH,    // driver problem
     INCORRECT_TYPE,         // driver problem
     SERIALIZING_PARAMS,     // driver problem
+    SESSION_STREAM_ALREADY_OPEN, // driver problem
+    SESSION_STREAM_NOT_EXIST, // driver problem
+    RESPONSE_QUEUE_EMTPY, // driver problem
 
     GENERIC_EXCEPTION;
 

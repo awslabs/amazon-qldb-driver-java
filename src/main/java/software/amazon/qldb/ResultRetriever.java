@@ -23,8 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
-import software.amazon.awssdk.services.qldbsession.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
@@ -223,7 +223,7 @@ class ResultRetriever {
          * Update the metrics.
          */
         void updateMetrics(FetchPageResult fetchPageResult) {
-            software.amazon.awssdk.services.qldbsession.model.IOUsage ioUsage = fetchPageResult.consumedIOs();
+            software.amazon.awssdk.services.qldbsessionv2.model.IOUsage ioUsage = fetchPageResult.consumedIOs();
             if (ioUsage != null) {
                 final Long readIOs = ioUsage.readIOs();
                 if (readIOs != null) {
@@ -244,7 +244,7 @@ class ResultRetriever {
                 }
             }
 
-            software.amazon.awssdk.services.qldbsession.model.TimingInformation timingInfo = fetchPageResult.timingInformation();
+            software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation timingInfo = fetchPageResult.timingInformation();
             if (timingInfo != null) {
                 final Long processingTimeMilliseconds = timingInfo.processingTimeMilliseconds();
                 if (processingTimeMilliseconds != null) {

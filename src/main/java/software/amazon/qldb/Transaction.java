@@ -15,7 +15,6 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
-import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,10 +24,8 @@ import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.utils.Validate;
-import software.amazon.qldb.exceptions.Errors;
 
 /**
  * <p>Interface that represents an active transaction with QLDB.</p>
@@ -57,7 +54,6 @@ class Transaction {
     private final Session session;
     private final String txnId;
     private final IonSystem ionSystem;
-    private QldbHash txnHash;
 
     private final int readAheadBufferCount;
     private final ExecutorService executorService;
@@ -73,7 +69,6 @@ class Transaction {
         Validate.isNotNegative(readAheadBufferCount, "readAheadBufferCount");
         this.session = session;
         this.txnId = txnId;
-        this.txnHash = QldbHash.toQldbHash(this.txnId, ionSystem);
         this.ionSystem = ionSystem;
         this.readAheadBufferCount = readAheadBufferCount;
         this.executorService = executorService;
@@ -99,16 +94,12 @@ class Transaction {
      *
      * @throws IllegalStateException if the transaction has been committed or aborted already, or if the returned commit
      *                               digest from QLDB does not match.
-     * @throws OccConflictException if an OCC conflict has been detected within the transaction.
+     * @throws RuntimeException if an Error event has been detected within the transaction.
+     *         TODO: Throw StatementError or TransactionError
      * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void commit() {
-        final ByteBuffer hashByteBuffer = ByteBuffer.wrap(getTransactionHash().getQldbHash());
-        final ByteBuffer commitDigest = session.sendCommit(txnId, hashByteBuffer).commitDigest().asByteBuffer();
-        if (!commitDigest.equals(hashByteBuffer)) {
-            logger.error(Errors.TXN_DIGEST_MISMATCH.get());
-            throw new IllegalStateException(Errors.TXN_DIGEST_MISMATCH.get());
-        }
+        session.sendCommit(txnId);
     }
 
     Result execute(String statement) {
@@ -119,7 +110,6 @@ class Transaction {
         software.amazon.awssdk.utils.Validate.paramNotBlank(statement, "statement");
         Validate.notNull(parameters, "parameters");
 
-        setTransactionHash(dot(getTransactionHash(), statement, parameters, ionSystem));
         final ExecuteStatementResult executeStatementResult = session.sendExecute(statement, parameters, txnId);
         final StreamResult result = new StreamResult(session, executeStatementResult, txnId,
                 readAheadBufferCount, ionSystem, executorService);
@@ -150,44 +140,5 @@ class Transaction {
      */
     String getTransactionId() {
         return txnId;
-    }
-
-    /**
-     * Apply the dot function on a seed {@link QldbHash} given a statement and parameters.
-     *
-     * @param seed
-     *              The current QldbHash representing the transaction's current commit digest.
-     * @param statement
-     *              The PartiQL statement to be executed against QLDB.
-     * @param parameters
-     *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
-     *
-     * @return The new QldbHash for the transaction.
-     */
-    static QldbHash dot(QldbHash seed, String statement, List<IonValue> parameters, IonSystem ionSystem) {
-        QldbHash statementHash = QldbHash.toQldbHash(statement, ionSystem);
-        for (IonValue param : parameters) {
-            statementHash = statementHash.dot(QldbHash.toQldbHash(param, ionSystem));
-        }
-        return seed.dot(statementHash);
-    }
-
-    /**
-     * Get this transaction's commit digest hash.
-     *
-     * @return The current commit digest hash.
-     */
-    QldbHash getTransactionHash() {
-        return txnHash;
-    }
-
-    /**
-     * Update this transaction's commit digest hash.
-     *
-     * @param hash
-     *              The new commit digest hash to replace the old one.
-     */
-    private void setTransactionHash(QldbHash hash) {
-        txnHash = hash;
     }
 }

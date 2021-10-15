@@ -12,56 +12,98 @@
  */
 package software.amazon.qldb;
 
-import com.amazon.ion.IonSystem;
-import com.amazon.ion.IonValue;
-import com.amazon.ion.system.IonSystemBuilder;
+import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.subjects.PublishSubject;
+import org.reactivestreams.Publisher;
+import software.amazon.awssdk.core.async.SdkPublisher;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommandStream;
+import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponse;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHandler;
+import software.amazon.awssdk.utils.CompletableFutureUtils;
+
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Queue;
-import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
-import software.amazon.awssdk.services.qldbsession.model.SendCommandRequest;
-import software.amazon.awssdk.services.qldbsession.model.SendCommandResponse;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
-public class MockQldbSessionClient implements QldbSessionClient {
-    private static class Holder {
+public class MockQldbSessionClient implements QldbSessionV2AsyncClient {
 
-        public final SendCommandResponse result;
-        public final RuntimeException exception;
-
-        public Holder(SendCommandResponse result) {
-            this.result = result;
-            this.exception = null;
-        }
-
-        public Holder(RuntimeException e) {
-            this.result = null;
-            this.exception = e;
-        }
-
-    }
-    private IonSystem system = IonSystemBuilder.standard().build();
-
+    private final PublishSubject<ResultStream> resultToDeliver;
     private final Queue<Holder> resultQueue;
+
+    private static class Holder {
+        public final SendCommandResponse response;
+        public final Exception exception;
+        public final ResultStream result;
+//        public final Queue<ResultStream> resultQueue = new ArrayDeque<>();
+
+        public Holder(SendCommandResponse response) {
+            this.response = response;
+            this.exception = null;
+            this.result = null;
+        }
+
+        public Holder(Exception e) {
+            this.response = null;
+            this.exception = e;
+            this.result = null;
+        }
+
+        public Holder(ResultStream result) {
+            this.response = null;
+            this.exception = null;
+            this.result = result;
+        }
+    }
 
     public MockQldbSessionClient() {
         resultQueue = new ArrayDeque<>();
+        resultToDeliver = PublishSubject.create();
     }
 
     @Override
-    public SendCommandResponse sendCommand(SendCommandRequest sendCommandRequest) {
-        final Holder response = resultQueue.remove();
-        if (response.exception != null) {
-            throw response.exception;
-        }
+    public CompletableFuture<Void> sendCommand(SendCommandRequest sendCommandRequest, Publisher<CommandStream> requestStream, SendCommandResponseHandler asyncResponseHandler) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        CompletableFuture<Void> executeFuture = CompletableFuture.runAsync(() -> {
+            while (resultQueue.peek() != null) {
+                Holder holder = resultQueue.remove();
+                if (holder.exception != null) {
+                    throw new CompletionException(holder.exception);
+                } else if (holder.response != null) {
+                    asyncResponseHandler.responseReceived(holder.response);
+                } else if (holder.result != null) {
+                    final SdkPublisher<ResultStream> sdkPublisher = SdkPublisher.adapt(resultToDeliver.toFlowable(BackpressureStrategy.ERROR));
+                    asyncResponseHandler.onEventStream(sdkPublisher);
+                    resultToDeliver.onNext(holder.result);
+                }
+            }
+        });
 
-        return response.result;
+        CompletableFuture<Void> whenCompleted = executeFuture.whenComplete((r, e) -> {
+            if (e != null) {
+                try {
+                    asyncResponseHandler.exceptionOccurred(e);
+                } finally {
+                    future.completeExceptionally(e);
+                }
+            }
+        });
+        executeFuture = CompletableFutureUtils.forwardExceptionTo(whenCompleted, executeFuture);
+        return CompletableFutureUtils.forwardExceptionTo(future, executeFuture);
+
     }
 
     public boolean isQueueEmpty() {
         return resultQueue.isEmpty();
+    }
+
+    public void queueResponse(Exception e) {
+        resultQueue.add(new Holder(e));
     }
 
     public MockQldbSessionClient queueResponse(SendCommandResponse response) {
@@ -69,32 +111,30 @@ public class MockQldbSessionClient implements QldbSessionClient {
         return this;
     }
 
+    public MockQldbSessionClient queueResponse(ResultStream result) {
+        resultQueue.add(new Holder(result));
+        return this;
+    }
+
     public MockQldbSessionClient startDummySession() {
-        queueResponse(MockResponses.START_SESSION_RESPONSE);
+        queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
         return this;
     }
 
     public MockQldbSessionClient addEndSession() {
-        queueResponse(MockResponses.endSessionResponse());
-        return this;
+        return queueResponse(MockResponses.END_SESSION_RESULT);
     }
 
-    public MockQldbSessionClient addDummyTransaction(String query) throws IOException {
-        return addDummyTransaction(query, null);
+    public MockQldbSessionClient addDummyTransaction() throws IOException {
+        return addDummyTransaction(null);
     }
 
-    public MockQldbSessionClient addDummyTransaction(String query, String txnId) throws IOException {
+    public MockQldbSessionClient addDummyTransaction(String txnId) throws IOException {
         txnId = txnId == null ? "id" : txnId;
-        QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
-        txnHash = Transaction.dot(txnHash, query, Collections.emptyList(), system);
         queueResponse(MockResponses.startTxnResponse(txnId));
         queueResponse(MockResponses.executeResponse(Collections.emptyList()));
-        queueResponse(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
+        queueResponse(MockResponses.commitTransactionResponse(txnId));
         return this;
-    }
-
-    public void queueResponse(RuntimeException e) {
-        resultQueue.add(new Holder(e));
     }
 
     @Override

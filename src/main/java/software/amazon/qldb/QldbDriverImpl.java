@@ -16,16 +16,23 @@ package software.amazon.qldb;
 import com.amazon.ion.IonSystem;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.ThreadSafe;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
+import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.ExecuteException;
@@ -55,7 +62,7 @@ class QldbDriverImpl implements QldbDriver {
 
     private final int readAhead;
     private final ExecutorService executorService;
-    private final QldbSessionClient amazonQldbSession;
+    private final QldbSessionV2AsyncClient amazonQldbSession;
     private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
@@ -83,7 +90,7 @@ class QldbDriverImpl implements QldbDriver {
      *                  The executor to be used by the retrieval thread if read-ahead is enabled.
      */
     protected QldbDriverImpl(String ledgerName,
-                             QldbSessionClient qldbSessionClient,
+                             QldbSessionV2AsyncClient qldbSessionClient,
                              RetryPolicy retryPolicy,
                              int readAhead,
                              int maxConcurrentTransactions,
@@ -224,12 +231,8 @@ class QldbDriverImpl implements QldbDriver {
     }
 
     private QldbSession createNewSession() {
-        try {
-            final Session session = Session.startSession(ledgerName, amazonQldbSession);
-            return new QldbSession(session, readAhead, ionSystem, executorService);
-        } catch (SdkException ase) {
-            throw new ExecuteException(ase, true, false, true, "None");
-        }
+        final Session session = Session.startSession(ledgerName, amazonQldbSession);
+        return new QldbSession(session, readAhead, ionSystem, executorService);
     }
 
     private void releaseSession(QldbSession session) {

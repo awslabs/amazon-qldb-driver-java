@@ -47,9 +47,10 @@ public class StatementExecutionIntegTest {
 
     @BeforeAll
     public static void setup() throws InterruptedException {
-        ledgerManager = new LedgerManager(Constants.LEDGER_NAME+System.getProperty("ledgerSuffix"), System.getProperty("region"));
+//        ledgerManager = new LedgerManager(Constants.LEDGER_NAME+System.getProperty("ledgerSuffix"), System.getProperty("region"));
+        ledgerManager = new LedgerManager(Constants.LEDGER_NAME, "us-east-1");
 
-        ledgerManager.runCreateLedger();
+//        ledgerManager.runCreateLedger();
 
         driver = ledgerManager.createQldbDriver(Constants.DEFAULT, Constants.RETRY_LIMIT);
 
@@ -72,11 +73,11 @@ public class StatementExecutionIntegTest {
         }
     }
 
-    @AfterAll
-    public static void classCleanup() throws Exception {
-        ledgerManager.deleteLedger();
-        driver.close();
-    }
+//    @AfterAll
+//    public static void classCleanup() throws Exception {
+//        ledgerManager.deleteLedger();
+//        driver.close();
+//    }
 
     @AfterEach
     public void testCleanup() {

@@ -23,7 +23,7 @@ public class TimingInformation {
         this.processingTimeMilliseconds = processingTimeMilliseconds;
     }
 
-    TimingInformation(software.amazon.awssdk.services.qldbsession.model.TimingInformation timingInfo) {
+    TimingInformation(software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation timingInfo) {
         this.processingTimeMilliseconds = timingInfo.processingTimeMilliseconds();
     }
 

@@ -14,17 +14,20 @@
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
+
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
-import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
-import software.amazon.awssdk.services.qldbsession.model.QldbSessionException;
-import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
+import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
 import software.amazon.qldb.exceptions.ExecuteException;
+import software.amazon.qldb.exceptions.StatementException;
+import software.amazon.qldb.exceptions.TransactionException;
 
 /**
  * Object responsible for executing and maintaining the lifecycle of the transaction
@@ -67,28 +70,40 @@ class QldbSession {
             }
             txn.commit();
             return returnedValue;
-        } catch (InvalidSessionException ise) {
-            boolean isAborted = false;
-            boolean transactionExpired = ise.getMessage().matches("Transaction.*has expired.*");
-            if (transactionExpired) {
-                isAborted = this.tryAbort(txn);
-            }
+//        } catch (InvalidSessionException ise) {
+//            boolean isAborted = false;
+//            boolean transactionExpired = ise.getMessage().matches("Transaction.*has expired.*");
+//            if (transactionExpired) {
+//                isAborted = this.tryAbort(txn);
+//            }
+//            throw new ExecuteException(
+//                    ise,
+//                    !transactionExpired,
+//                    isAborted,
+//                    true,
+//                    txnId
+//            );
+//        } catch (OccConflictException oce) {
+//            throw new ExecuteException(
+//                    oce,
+//                    true,
+//                    true,
+//                    false,
+//                    txnId
+//            );
+        } catch (ExecuteException ee) {
+            // Route the exception to QldbDriverImpl.java
+            throw ee;
+        } catch (TransactionException | StatementException e) {
+            // Session is still alive. Retry with a new transaction.
             throw new ExecuteException(
-                    ise,
-                    !transactionExpired,
-                    isAborted,
+                    e,
                     true,
-                    txnId
-            );
-        } catch (OccConflictException oce) {
-            throw new ExecuteException(
-                    oce,
-                    true,
-                    true,
+                    this.tryAbort(txn),
                     false,
                     txnId
             );
-        } catch (QldbSessionException qse) {
+        } catch (QldbSessionV2Exception qse) {
             boolean retryable = (qse.statusCode() == HttpStatus.SC_INTERNAL_SERVER_ERROR)
                     || (qse.statusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE);
             throw new ExecuteException(
@@ -98,15 +113,16 @@ class QldbSession {
                     false,
                     txnId
             );
-        } catch (SdkClientException sce) {
-            // SdkClientException means that client couldn't reach out QLDB so transaction should be retried.
-            throw new ExecuteException(
-                    sce,
-                    true,
-                    this.tryAbort(txn),
-                    false,
-                    txnId
-            );
+            // TODO: We don't need this since SdkClientException has been bubbled up out of the transaction.
+//        } catch (SdkClientException sce) {
+//            // SdkClientException means that client couldn't reach out QLDB so transaction should be retried.
+//            throw new ExecuteException(
+//                    sce,
+//                    true,
+//                    this.tryAbort(txn),
+//                    false,
+//                    txnId
+//            );
         } catch (RuntimeException re) {
             throw new ExecuteException(
                     re,

@@ -16,7 +16,8 @@ package software.amazon.qldb;
 import com.amazon.ion.IonSystem;
 import java.util.concurrent.ExecutorService;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
+import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClientBuilder;
 
 /**
  * <p>Builder class to create the {@link QldbDriver}.</p>
@@ -76,7 +77,7 @@ public interface QldbDriverBuilder {
      *
      * @return This builder object.
      */
-    QldbDriverBuilder sessionClientBuilder(QldbSessionClientBuilder clientBuilder);
+    QldbDriverBuilder sessionClientBuilder(QldbSessionV2AsyncClientBuilder clientBuilder);
 
     /**
      * <p>
@@ -189,5 +190,5 @@ public interface QldbDriverBuilder {
      *
      * @return This builder object.
      */
-    QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder);
+    QldbDriverBuilder httpClientBuilder(SdkAsyncHttpClient.Builder httpClientBuilder);
 }

@@ -13,8 +13,13 @@
 
 package software.amazon.qldb.integrationtests;
 
+import java.net.URI;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import software.amazon.awssdk.core.internal.http.loader.DefaultSdkAsyncHttpClientBuilder;
+import software.amazon.awssdk.http.Protocol;
+import software.amazon.awssdk.http.SdkHttpConfigurationOption;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.qldb.QldbClient;
 import software.amazon.awssdk.services.qldb.model.CreateLedgerRequest;
@@ -26,8 +31,9 @@ import software.amazon.awssdk.services.qldb.model.PermissionsMode;
 import software.amazon.awssdk.services.qldb.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.qldb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.qldb.model.UpdateLedgerRequest;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClientBuilder;
+import software.amazon.awssdk.utils.AttributeMap;
 import software.amazon.qldb.QldbDriver;
 import software.amazon.qldb.QldbDriverBuilder;
 import software.amazon.qldb.RetryPolicy;
@@ -37,30 +43,34 @@ public class LedgerManager {
     private final String ledgerName;
     private final String regionName;
     private final QldbClient client;
-
     public LedgerManager(final String ledger, final String region) {
         this.ledgerName = ledger;
         this.regionName = region;
-        this.client = QldbClient.builder().region(Region.of(regionName)).build();
+        this.client = QldbClient.builder().region(Region.of(regionName)).endpointOverride(URI.create("https://frontend-547110709870.dev.qldb.aws.a2z.com")).build();
     }
 
     public QldbDriver createQldbDriver(final String ledger, final int poolLimit, final int retryLimit) {
         QldbDriverBuilder builder = QldbDriver.builder().ledger(ledger);
-
         if (poolLimit != Constants.DEFAULT) {
             builder.maxConcurrentTransactions(poolLimit);
         }
-
         if (retryLimit != Constants.DEFAULT) {
             builder.transactionRetryPolicy(RetryPolicy.builder().maxRetries(retryLimit).build());
         } else {
             builder.transactionRetryPolicy(RetryPolicy.builder().maxRetries(retryLimit).build());
         }
 
-        QldbSessionClientBuilder sessionClientBuilder = QldbSessionClient.builder();
-        sessionClientBuilder.region(Region.of(regionName));
+        QldbSessionV2AsyncClientBuilder sessionClientBuilder = QldbSessionV2AsyncClient.builder()
+                .region(Region.of(regionName))
+                .endpointOverride(URI.create("https://session-547110709870.dev.qldb.aws.a2z.com"));
 
+        AttributeMap httpConfig = AttributeMap
+                .builder()
+                .put(SdkHttpConfigurationOption.PROTOCOL, Protocol.HTTP2)
+                .put(SdkHttpConfigurationOption.TRUST_ALL_CERTIFICATES, true)
+                .build();
         builder.sessionClientBuilder(sessionClientBuilder);
+        builder.httpClientBuilder(attributeMap -> new DefaultSdkAsyncHttpClientBuilder().buildWithDefaults(httpConfig));
 
         return builder.build();
     }

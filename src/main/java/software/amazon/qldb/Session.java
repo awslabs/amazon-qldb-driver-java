@@ -1,85 +1,74 @@
-/*
- * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with
- * the License. A copy of the License is located at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
- * CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions
- * and limitations under the License.
- */
-
 package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import com.amazon.ion.IonWriter;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.subjects.PublishSubject;
+import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.annotations.ThreadSafe;
+import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.qldbsession.QldbSessionClient;
-import software.amazon.awssdk.services.qldbsession.model.AbortTransactionRequest;
-import software.amazon.awssdk.services.qldbsession.model.AbortTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.CommitTransactionRequest;
-import software.amazon.awssdk.services.qldbsession.model.CommitTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.EndSessionRequest;
-import software.amazon.awssdk.services.qldbsession.model.EndSessionResult;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementRequest;
-import software.amazon.awssdk.services.qldbsession.model.ExecuteStatementResult;
-import software.amazon.awssdk.services.qldbsession.model.FetchPageRequest;
-import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
-import software.amazon.awssdk.services.qldbsession.model.InvalidSessionException;
-import software.amazon.awssdk.services.qldbsession.model.OccConflictException;
-import software.amazon.awssdk.services.qldbsession.model.Page;
-import software.amazon.awssdk.services.qldbsession.model.SendCommandRequest;
-import software.amazon.awssdk.services.qldbsession.model.SendCommandResponse;
-import software.amazon.awssdk.services.qldbsession.model.StartSessionRequest;
-import software.amazon.awssdk.services.qldbsession.model.StartTransactionRequest;
-import software.amazon.awssdk.services.qldbsession.model.StartTransactionResult;
-import software.amazon.awssdk.services.qldbsession.model.ValueHolder;
+import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
+import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommandStream;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.EndSessionRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.EndSessionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
+import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponse;
+import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHandler;
+import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionRequest;
+import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.StatementError;
+import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
+import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
 import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.ExecuteException;
 import software.amazon.qldb.exceptions.QldbDriverException;
+import software.amazon.qldb.exceptions.StatementException;
+import software.amazon.qldb.exceptions.TransactionException;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
 
 /**
  * Session object representing a communication channel with QLDB.
  *
- * This object is thread-safe.
+ * This object is not thread-safe.
  */
-@ThreadSafe
-class Session implements AutoCloseable {
+@NotThreadSafe
+class Session {
     private static final Logger logger = LoggerFactory.getLogger(Session.class);
-
+    private static CompletableFuture<Void> future;
     private final String ledgerName;
-    private final String sessionToken;
-    private final String sessionId;
-    private final QldbSessionClient client;
+    private final QldbSessionV2AsyncClient client;
+    private static String sessionId;
+    private static PublishSubject<CommandStream> commandStreamSubject;
+    private static EventStreamSubscriber eventStreamSubscriber;
+    private static LinkedBlockingQueue<SendCommandResponse> connection;
 
-    /**
-     * Constructor for a session to a specific ledger.
-     #
-     * @param ledgerName
-     *              The name of the ledger to create a session to.
-     * @param sessionToken
-     *              The unique identifying token for this session to the QLDB.
-     * @param sessionId
-     *              The initial request ID for this session to QLDB.
-     * @param client
-     *              The low-level session used for communication with QLDB.
-     */
-    private Session(String ledgerName, String sessionToken, String sessionId, QldbSessionClient client) {
+    private Session(String ledgerName, QldbSessionV2AsyncClient client) {
         this.ledgerName = ledgerName;
         this.client = client;
-        this.sessionToken = sessionToken;
-        this.sessionId = sessionId;
     }
 
     /**
@@ -92,103 +81,128 @@ class Session implements AutoCloseable {
      *
      * @return A newly created {@link Session}.
      */
-    static Session startSession(String ledgerName, QldbSessionClient client) {
-        final StartSessionRequest request = StartSessionRequest.builder().ledgerName(ledgerName).build();
-        final SendCommandRequest command = SendCommandRequest.builder().startSession(request).build();
-
-        logger.debug("Sending start session request: {}", command);
-        final SendCommandResponse result = client.sendCommand(command);
-        final String sessionToken = result.startSession().sessionToken();
-        final String sessionId = result.responseMetadata().requestId();
-
-        return new Session(ledgerName, sessionToken, sessionId, client);
+    static Session startSession(String ledgerName, QldbSessionV2AsyncClient client) {
+        final Session session = new Session(ledgerName, client);
+        commandStreamSubject = PublishSubject.create();
+        eventStreamSubscriber = new EventStreamSubscriber();
+        connection = new LinkedBlockingQueue<>(1);
+        future = startSessionStream(ledgerName, client);
+        throwStreamException();
+        return session;
     }
 
-    @Override
-    public void close() {
+     static CompletableFuture<Void> startSessionStream(String ledgerName, QldbSessionV2AsyncClient client) {
+        if (!connection.isEmpty()) {
+            throw QldbDriverException.create(QldbDriverException.create(Errors.SESSION_STREAM_ALREADY_OPEN.get()));
+        } else {
+            final SendCommandRequest sendCommandRequest = SendCommandRequest.builder().ledgerName(ledgerName).build();
+            logger.info("Start streaming...");
+            return client.sendCommand(sendCommandRequest, commandStreamSubject.toFlowable(BackpressureStrategy.ERROR), getResponseHandler());
+        }
+     }
+
+    private static SendCommandResponseHandler getResponseHandler(){
+        return SendCommandResponseHandler.builder()
+            .onResponse(sendCommandResponse -> {
+                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received initial response " + sendCommandResponse);
+                // It'd be great if there is a way to distinguish whether the connection is established out of future.
+                // e.g. Server could return CompletableFuture<SendCommandResponse>...
+                connection.offer(sendCommandResponse);
+                sessionId = sendCommandResponse.sessionId();
+            })
+            .onError(e -> {
+                System.err.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Error occurred while stream - " + e.getMessage());
+                connection.clear();
+            })
+            .onComplete(() -> {
+                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received complete");
+                connection.clear();
+            })
+            .onEventStream(publisher -> {
+                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: On event stream...");
+                publisher.subscribe(eventStreamSubscriber);
+            }).build();
+    }
+
+    private void send(CommandStream command) {
+        System.out.println(Thread.currentThread().getName() + " Sending " + command);
+        commandStreamSubject.onNext(command);
+    }
+
+    private void waitForConnection() {
         try {
-            sendEndSession();
-        } catch (SdkServiceException e) {
-            // We will only log issues closing the session, as QLDB will clean them up after a timeout.
-            logger.warn("Errors closing session: {}", e.getMessage(), e);
+            SendCommandResponse response = connection.poll(1000L, TimeUnit.MILLISECONDS);
+            if (response == null) {
+                throw QldbDriverException.create(Errors.SESSION_STREAM_NOT_EXIST.get());
+            }
+            connection.put(response);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_CONNECTION_INTERRUPTED.get());
         }
     }
 
-    /**
-     * Get the session ID.
-     *
-     * @return This session's ID.
-     */
-    String getId() {
-        return sessionId;
+    // Check if stream is already completed.
+    // If stream is done exceptionally, the exception will be routed to QldbDriverImpl.java because the session/stream is terminated.
+    private static void throwStreamException() {
+        if (future.isDone()) {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw QldbDriverException.create(Errors.GET_SESSION_INTERRUPTED.get());
+            } catch (ExecutionException ee) {
+                final Throwable cause = ee.getCause();
+                if (cause instanceof SdkClientException) {
+                    // Give up dead session and retry with a new session.
+                    // TODO: Resume session by sending a new SendCommandRequest.
+                    throw new ExecuteException((RuntimeException) cause, true, false, false, "None");
+                }
+                else if (cause instanceof QldbSessionV2Exception) {
+                    // Give up dead session and retry with a new session when it's 500/503.
+                    final QldbSessionV2Exception serviceException = (QldbSessionV2Exception) cause;
+                    boolean retryable = (serviceException.statusCode() == HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                        || (serviceException.statusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE);
+                    throw new ExecuteException(serviceException, retryable, false, false, "None");
+                }
+                else {
+                    // Give up dead session and don't retry.
+                    throw new ExecuteException((RuntimeException) ee.getCause(), false, false, false, "None");
+                }
+            }
+        }
     }
 
-    /**
-     * Get the session token.
-     *
-     * @return This session's token.
-     */
-    String getToken() {
-        return sessionToken;
+    // Throw TransactionException and StatementException if result is an EventError.
+    // The exception will be handled directly in QldbSession.java.
+    private ResultStream throwEventException(ResultStream result) {
+        throwStreamException();
+
+        if (result == null) {
+            throw QldbDriverException.create(Errors.RESPONSE_QUEUE_EMTPY.get());
+        }
+        else if (result instanceof TransactionError) {
+            throw TransactionException.create((TransactionError)result);
+        } else if (result instanceof StatementError) {
+            throw StatementException.create((StatementError)result);
+        } else return result;
     }
 
-    /**
-     * Send an abort request to QLDB, rolling back any active changes and closing any open results.
-     *
-     * @return The result of the abort transaction request.
-     */
-    AbortTransactionResult sendAbort() {
-        final AbortTransactionRequest request = AbortTransactionRequest.builder().build();
+    StartTransactionResult sendStartTransaction() {
+        waitForConnection();
 
-        SendCommandResponse result = send(SendCommandRequest.builder().abortTransaction(request));
-        return result.abortTransaction();
+        try {
+            final StartTransactionRequest startTransactionRequest = CommandStream.startTransactionBuilder().build();
+            send(startTransactionRequest);
+            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
+            return (StartTransactionResult) result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get(), ie.getCause());
+        }
     }
 
-    /**
-     * Send a commit request to QLDB, committing any active changes and closing any open results.
-     *
-     * @param txnId
-     *              The unique ID of the transaction to commit.
-     * @param transactionDigest
-     *              The digest hash of the transaction to commit.
-     *
-     * @return The result of the commit transaction request.
-     * @throws OccConflictException if an OCC conflict has been detected within the transaction.
-     */
-    CommitTransactionResult sendCommit(String txnId, ByteBuffer transactionDigest) {
-        final CommitTransactionRequest request = CommitTransactionRequest.builder()
-             .transactionId(txnId)
-             .commitDigest(SdkBytes.fromByteBuffer(transactionDigest))
-             .build();
-
-        SendCommandResponse result = send(SendCommandRequest.builder().commitTransaction(request));
-        return result.commitTransaction();
-    }
-
-    /**
-     * Send an end session request to QLDB, closing all open results and transactions.
-     *
-     * @return The result of the end session request.
-     */
-    EndSessionResult sendEndSession() {
-        final EndSessionRequest request = EndSessionRequest.builder().build();
-
-        SendCommandResponse result = send(SendCommandRequest.builder().endSession(request));
-        return result.endSession();
-    }
-
-    /**
-     * Send an execute request with parameters to QLDB.
-     *
-     * @param statement
-     *              The PartiQL statement to execute.
-     * @param parameters
-     *              The parameters to use with the PartiQL statement for execution.
-     * @param txnId
-     *              The unique ID of the transaction to execute.
-     *
-     * @return The result of the execution, which contains a {@link Page} representing the first data chunk.
-     */
     ExecuteStatementResult sendExecute(String statement, List<IonValue> parameters, String txnId) {
         final List<ValueHolder> byteParameters = new ArrayList<>(parameters.size());
 
@@ -209,65 +223,109 @@ class Session implements AutoCloseable {
                 }
             } catch (IOException e) {
                 throw QldbDriverException.create(String.format(Errors.SERIALIZING_PARAMS.get(), e.getMessage()),
-                                                 e);
+                        e);
             }
         }
-
-        final ExecuteStatementRequest request = ExecuteStatementRequest.builder()
-                                                                       .statement(statement)
-                                                                       .parameters(byteParameters)
-                                                                       .transactionId(txnId)
-                                                                       .build();
-        SendCommandResponse result = send(SendCommandRequest.builder().executeStatement(request));
-        return result.executeStatement();
+        waitForConnection();
+        try {
+            final ExecuteStatementRequest executeStatementRequest = CommandStream.executeStatementBuilder()
+                    .statement(statement)
+                    .parameters(byteParameters)
+                    .transactionId(txnId)
+                    .build();
+            send(executeStatementRequest);
+            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
+            return (ExecuteStatementResult) result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        }
     }
 
-    /**
-     * Send a fetch result request to QLDB, retrieving the next chunk of data for the result.
-
-     * @param txnId
-     *              The unique ID of the transaction to execute.
-     * @param nextPageToken
-     *              The token that indicates what the next expected page is.
-     *
-     * @return The result of the fetch page request.
-     */
     FetchPageResult sendFetchPage(String txnId, String nextPageToken) {
-        final FetchPageRequest request = FetchPageRequest.builder()
-                                                         .transactionId(txnId)
-                                                         .nextPageToken(nextPageToken)
-                                                         .build();
+        waitForConnection();
 
-        SendCommandResponse result = send(SendCommandRequest.builder().fetchPage(request));
-        return result.fetchPage();
+        try {
+            final FetchPageRequest fetchPageRequest = CommandStream.fetchPageBuilder()
+                .transactionId(txnId)
+                .nextPageToken(nextPageToken)
+                .build();
+
+            send(fetchPageRequest);
+            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
+            return (FetchPageResult) result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        }
+    }
+
+    CommitTransactionResult sendCommit(String txnId) {
+        waitForConnection();
+
+        try {
+            final CommitTransactionRequest commitTransactionRequest = CommandStream.commitTransactionBuilder()
+                    .transactionId(txnId)
+                    .build();
+            send(commitTransactionRequest);
+            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
+            return (CommitTransactionResult) result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        }
+    }
+
+    AbortTransactionResult sendAbort() {
+        waitForConnection();
+
+        try {
+            final AbortTransactionRequest abortTransactionRequest = CommandStream.abortTransactionBuilder().build();
+
+            send(abortTransactionRequest);
+            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
+            return (AbortTransactionResult) result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        }
+    }
+
+    EndSessionResult sendEndSession() {
+        waitForConnection();
+
+        try {
+            final EndSessionRequest endSessionRequest = CommandStream.endSessionBuilder().build();
+            send(endSessionRequest);
+            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
+            return (EndSessionResult) result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        }
     }
 
     /**
-     * Send a start transaction request to QLDB.
+     * Get the session ID.
      *
-     * @return The result of the start transaction request.
+     * @return This session's ID.
      */
-    StartTransactionResult sendStartTransaction() {
-        final StartTransactionRequest request = StartTransactionRequest.builder().build();
-        final SendCommandRequest.Builder command = SendCommandRequest.builder().startTransaction(request);
-
-        final SendCommandResponse result = send(command);
-        return result.startTransaction();
+    String getId() {
+        return sessionId;
     }
 
-    /**
-     * Send a request to QLDB.
-     *
-     * @param request
-     *              The request to send.
-     *
-     * @return The result returned by QLDB for the request.
-     * @throws OccConflictException if an OCC conflict was detected when committing a transaction.
-     * @throws InvalidSessionException when this session is invalid.
-     */
-    private SendCommandResponse send(SendCommandRequest.Builder request) {
-        final SendCommandRequest command = request.sessionToken(sessionToken).build();
-        logger.debug("Sending request: {}", command);
-        return client.sendCommand(command);
+    public void close() {
+        try {
+            sendEndSession();
+        } catch (SdkServiceException e) {
+            // We will only log issues closing the session, as QLDB will clean them up after a timeout.
+            logger.warn("Errors closing session: {}", e.getMessage(), e);
+        }
     }
+
 }

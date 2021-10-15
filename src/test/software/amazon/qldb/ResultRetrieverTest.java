@@ -33,9 +33,9 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.qldbsession.model.FetchPageResult;
-import software.amazon.awssdk.services.qldbsession.model.Page;
-import software.amazon.awssdk.services.qldbsession.model.ValueHolder;
+import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
 public class ResultRetrieverTest {
@@ -67,10 +67,10 @@ public class ResultRetrieverTest {
     private FetchPageResult mockFetchPage;
 
     @Mock
-    private software.amazon.awssdk.services.qldbsession.model.IOUsage mockConsumedIOs;
+    private software.amazon.awssdk.services.qldbsessionv2.model.IOUsage mockConsumedIOs;
 
     @Mock
-    private software.amazon.awssdk.services.qldbsession.model.TimingInformation mockSessionTimingInfo;
+    private software.amazon.awssdk.services.qldbsessionv2.model.TimingInformation mockSessionTimingInfo;
 
     @Mock
     private IOUsage mockIOUsage;
