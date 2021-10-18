@@ -40,7 +40,6 @@ public class MockQldbSessionClient implements QldbSessionV2AsyncClient {
         public final SendCommandResponse response;
         public final Exception exception;
         public final ResultStream result;
-//        public final Queue<ResultStream> resultQueue = new ArrayDeque<>();
 
         public Holder(SendCommandResponse response) {
             this.response = response;

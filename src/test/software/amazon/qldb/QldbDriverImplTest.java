@@ -49,6 +49,7 @@ import software.amazon.awssdk.services.qldbsessionv2.model.BadRequestException;
 import software.amazon.awssdk.services.qldbsessionv2.model.LimitExceededException;
 import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.awssdk.services.qldbsessionv2.model.RateExceededException;
+import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
@@ -427,54 +428,54 @@ public class QldbDriverImplTest {
         });
     }
 
-//    @Test
-//    @DisplayName("execute - SHOULD retry WHEN QLDB executes a transaction but fails with 500 or 503 response status code "
-//            + "but bubble up 404 responses ")
-//    public void testExecuteExecutorLambdaWithQldbSessionExceptions() throws IOException {
-//        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
-//        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
-//                .maxRetries(3)
-//                .backoffStrategy(txnBackoff)
-//                .build());
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//        final AwsServiceException exception1 = QldbSessionV2Exception.builder()
-//                .message("1")
-//                .statusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR)
-//                .build();
-//        // This exception should retry with a new session.
-//        queueTxnExecStreamError(exception1);
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//        final AwsServiceException exception2 = QldbSessionV2Exception.builder()
-//                .message("2")
-//                .statusCode(HttpStatus.SC_SERVICE_UNAVAILABLE)
-//                .build();
-//        // This exception should retry with a new session.
-//        queueTxnExecStreamError(exception2);
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//        final AwsServiceException exception3 = QldbSessionV2Exception.builder()
-//                .message("3")
-//                .statusCode(HttpStatus.SC_NOT_FOUND)
-//                .build();
-//        // This exception should throw.
-//        queueTxnExecStreamError(exception3);
-//
-//        assertThrows(QldbSessionV2Exception.class, () -> {
-//            try {
-//                retryDriver.execute(txnExecutor -> {
-//                    Result result = txnExecutor.execute(statement);
-//                    return result;
-//                }, retryPolicy);
-//            } finally {
-//                verify(retryPolicy, times(2)).backoffStrategy();
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
-//                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
-//            }
-//        });
-//    }
+    @Test
+    @DisplayName("execute - SHOULD retry WHEN QLDB executes a transaction but fails with 500 or 503 response status code "
+            + "but bubble up 404 responses ")
+    public void testExecuteExecutorLambdaWithQldbSessionExceptions() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+        final AwsServiceException exception1 = QldbSessionV2Exception.builder()
+                .message("1")
+                .statusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                .build();
+        // This exception should retry with a new session.
+        queueTxnStreamError(exception1);
+
+        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+        final AwsServiceException exception2 = QldbSessionV2Exception.builder()
+                .message("2")
+                .statusCode(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                .build();
+        // This exception should retry with a new session.
+        queueTxnStreamError(exception2);
+
+        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+        final AwsServiceException exception3 = QldbSessionV2Exception.builder()
+                .message("3")
+                .statusCode(HttpStatus.SC_NOT_FOUND)
+                .build();
+        // This exception should throw.
+        queueTxnStreamError(exception3);
+
+        assertThrows(QldbSessionV2Exception.class, () -> {
+            try {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            } finally {
+                verify(retryPolicy, times(2)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            }
+        });
+    }
 
 //    @Test
 //    @DisplayName("execute - SHOULD retry up to retry limit WHEN QLDB throws OCC Errors")
@@ -509,164 +510,161 @@ public class QldbDriverImplTest {
 //        }
 //    }
 
-//    @Test
-//    @DisplayName("execute - SHOULD retry generic server side failures WHEN QLDB executes a transaction")
-//    public void testExecuteExecutorLambdaWithSdkServiceExceptions() throws IOException {
-//        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
-//        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
-//                .maxRetries(3)
-//                .backoffStrategy(txnBackoff)
-//                .build());
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//
-//        // This exception should be retried with a new session.
-//        final SdkClientException exception1 = SdkClientException
-//                .builder()
-//                .message("Error 1")
-//                .cause(new NoHttpResponseException("cause"))
-//                .build();
-//        queueTxnExecStreamError(exception1);
-//
-//        // This exception should be retried with a new session.
-//        final SdkClientException exception2 = SdkClientException
-//                .builder()
-//                .message("Error 2")
-//                .cause(new SocketTimeoutException("cause"))
-//                .build();
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//        queueTxnExecStreamError(exception2);
-//
-//        // This exceptions should be thrown.
-//        final RateExceededException exception3 = RateExceededException.builder().message("3").build();
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//        queueTxnExecStreamError(exception3);
-//
-//        assertThrows(RateExceededException.class, () -> {
-//            try {
-//                retryDriver.execute(txnExecutor -> {
-//                    Result result = txnExecutor.execute(statement);
-//                    return result;
-//                }, retryPolicy);
-//            } finally {
-//                verify(retryPolicy, times(2)).backoffStrategy();
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
-//                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
-//            }
-//        });
-//    }
-//
-//    @Test
-//    @DisplayName("execute - SHOULD retry generic client failures up to a limit WHEN QLDB executes a transaction")
-//    public void testExecuteExecutorLambdaWithSdkClientExceptionExceedRetry() throws IOException {
-//        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
-//        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
-//                .maxRetries(3)
-//                .backoffStrategy(txnBackoff)
-//                .build());
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//
-//        int retryLimit = 3;
-//        for (int i = 0; i < retryLimit + 1; ++i) {
-//            final SdkClientException exception = SdkClientException
-//                    .builder()
-//                    .message("Error")
-//                    .cause(new NoHttpResponseException("cause"))
-//                    .build();
-//            queueTxnExecStreamError(exception);
-//        }
-//
-//        assertThrows(SdkClientException.class, () -> {
-//            try {
-//                retryDriver.execute(txnExecutor -> {
-//                    Result result = txnExecutor.execute(statement);
-//                    return result;
-//                }, retryPolicy);
-//            } finally {
-//                verify(retryPolicy, times(3)).backoffStrategy();
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
-//                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
-//                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
-//            }
-//        });
-//    }
-//
-//    @Test
-//    @DisplayName("execute - SHOULD retry server side failures up to retry limit WHEN QLDB executes a transaction")
-//    public void testExecuteExecutorLambdaWithQldbSessionExceptionsExceedRetry() throws IOException {
-//        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
-//        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
-//                .maxRetries(3)
-//                .backoffStrategy(txnBackoff)
-//                .build());
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//
-//        int retryLimit = 3;
-//        for (int i = 0; i < retryLimit + 1; ++i) {
-//            final AwsServiceException exception = QldbSessionV2Exception
-//                    .builder()
-//                    .message("Error")
-//                    .statusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR)
-//                    .build();
-//            queueTxnExecStreamError(exception);
-//        }
-//
-//        try {
-//            assertThrows(QldbSessionV2Exception.class, () -> {
-//                retryDriver.execute(txnExecutor -> {
-//                    Result result = txnExecutor.execute(statement);
-//                    return result;
-//                }, retryPolicy);
-//            });
-//        } finally {
-//            verify(retryPolicy, times(3)).backoffStrategy();
-//            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
-//            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
-//            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
-//            verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
-//        }
-//    }
-//
-//    @Test
-//    @DisplayName("execute - SHOULD retry CapacityExceededException failures up to retry limit WHEN QLDB executes a transaction")
-//    public void testExecuteExecutorLambdaWithCapacityExceededExceptionExceedRetry() throws IOException {
-//        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
-//        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
-//                .maxRetries(3)
-//                .backoffStrategy(txnBackoff)
-//                .build());
-//
-//        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//
-//        int retryLimit = 3;
-//        for (int i = 0; i < retryLimit + 1; ++i) {
-//            final CapacityExceededException exception = CapacityExceededException
-//                    .builder()
-//                    .statusCode(503)
-//                    .message("Capacity Exceeded Exception")
-//                    .build();
-//            queueTxnExecStreamError(exception);
-//        }
-//
-//        try {
-//            assertThrows(QldbSessionV2Exception.class, () -> {
-//                retryDriver.execute(txnExecutor -> {
-//                    Result result = txnExecutor.execute(statement);
-//                    return result;
-//                }, retryPolicy);
-//            });
-//        } finally {
-//            verify(retryPolicy, times(3)).backoffStrategy();
-//            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
-//            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
-//            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
-//            verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
-//        }
-//    }
+    @Test
+    @DisplayName("execute - SHOULD retry generic server side failures WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithSdkServiceExceptions() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+
+        // This exception should be retried with a new session.
+        final SdkClientException exception1 = SdkClientException
+                .builder()
+                .message("Error 1")
+                .cause(new NoHttpResponseException("cause"))
+                .build();
+        queueTxnStreamError(exception1);
+
+        // This exception should be retried with a new session.
+        final SdkClientException exception2 = SdkClientException
+                .builder()
+                .message("Error 2")
+                .cause(new SocketTimeoutException("cause"))
+                .build();
+        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+        queueTxnStreamError(exception2);
+
+        // This exceptions should be thrown.
+        final RateExceededException exception3 = RateExceededException.builder().message("3").build();
+        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+        queueTxnStreamError(exception3);
+
+        assertThrows(RateExceededException.class, () -> {
+            try {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            } finally {
+                verify(retryPolicy, times(2)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry generic client failures up to a limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithSdkClientExceptionExceedRetry() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        int retryLimit = 3;
+        for (int i = 0; i < retryLimit + 1; ++i) {
+            final SdkClientException exception = SdkClientException
+                    .builder()
+                    .message("Error")
+                    .cause(new NoHttpResponseException("cause"))
+                    .build();
+            mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+            queueTxnStreamError(exception);
+        }
+
+        assertThrows(SdkClientException.class, () -> {
+            try {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            } finally {
+                verify(retryPolicy, times(3)).backoffStrategy();
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+                verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+                verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry server side failures up to retry limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithQldbSessionExceptionsExceedRetry() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        int retryLimit = 3;
+        for (int i = 0; i < retryLimit + 1; ++i) {
+            final AwsServiceException exception = QldbSessionV2Exception
+                    .builder()
+                    .message("Error")
+                    .statusCode(HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                    .build();
+            mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+            queueTxnStreamError(exception);
+        }
+
+        try {
+            assertThrows(QldbSessionV2Exception.class, () -> {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            });
+        } finally {
+            verify(retryPolicy, times(3)).backoffStrategy();
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
+        }
+    }
+
+    @Test
+    @DisplayName("execute - SHOULD retry CapacityExceededException failures up to retry limit WHEN QLDB executes a transaction")
+    public void testExecuteExecutorLambdaWithCapacityExceededExceptionExceedRetry() throws IOException {
+        BackoffStrategy txnBackoff = spy(new DefaultQldbTransactionBackoffStrategy());
+        RetryPolicy retryPolicy = spy(RetryPolicy.builder()
+                .maxRetries(3)
+                .backoffStrategy(txnBackoff)
+                .build());
+
+        int retryLimit = 3;
+        for (int i = 0; i < retryLimit + 1; ++i) {
+            final CapacityExceededException exception = CapacityExceededException
+                    .builder()
+                    .statusCode(503)
+                    .message("Capacity Exceeded Exception")
+                    .build();
+            mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
+            queueTxnStreamError(exception);
+        }
+
+        try {
+            assertThrows(QldbSessionV2Exception.class, () -> {
+                retryDriver.execute(txnExecutor -> {
+                    Result result = txnExecutor.execute(statement);
+                    return result;
+                }, retryPolicy);
+            });
+        } finally {
+            verify(retryPolicy, times(3)).backoffStrategy();
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 1));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 2));
+            verify(txnBackoff, times(1)).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == 3));
+            verify(txnBackoff, never()).calculateDelay(argThat((RetryPolicyContext rpc) -> rpc.retriesAttempted() == retryLimit + 1));
+        }
+    }
 
     @Test
     @DisplayName("execute - SHOULD throw NullPointerException WHEN executor lambda is null")
@@ -699,8 +697,15 @@ public class QldbDriverImplTest {
 //                .transactionRetryPolicy(mockRetryPolicy)
 //                .build();
 //
+//        final CapacityExceededException cce = CapacityExceededException
+//                .builder()
+//                .statusCode(503)
+//                .message("Capacity Exceeded Exception")
+//                .build();
+//
 //        mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
-//        queueTxnExecEventError();
+//        mockClient.queueResponse(MockResponses.startTxnResponse("txid"));
+//        mockClient.queueResponse(cce);
 //        // Queue exception for abort request.
 //        mockClient.queueResponse(runtimeException);
 //
@@ -729,9 +734,8 @@ public class QldbDriverImplTest {
         mockClient.queueResponse(MockResponses.commitTransactionResponse(txnId));
     }
 
-    public void queueTxnExecStreamError(SdkException ace) throws IOException {
+    public void queueTxnStreamError(SdkException ace) throws IOException {
         mockClient.queueResponse(MockResponses.startTxnResponse("id"));
-        mockClient.queueResponse(MockResponses.executeResponse(ionList));
         mockClient.queueResponse(ace);
     }
 

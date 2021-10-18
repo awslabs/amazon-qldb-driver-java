@@ -9,13 +9,13 @@ import software.amazon.qldb.exceptions.QldbDriverException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-class EventStreamSubscriber implements Subscriber<ResultStream> {
+class ResultStreamSubscriber implements Subscriber<ResultStream> {
 
     private final LinkedBlockingQueue<ResultStream> results;
     private boolean done;
     private Subscription subscription;
 
-    protected EventStreamSubscriber() {
+    protected ResultStreamSubscriber() {
         this.results = new LinkedBlockingQueue<>();
     }
 

@@ -63,7 +63,7 @@ class Session {
     private final QldbSessionV2AsyncClient client;
     private static String sessionId;
     private static PublishSubject<CommandStream> commandStreamSubject;
-    private static EventStreamSubscriber eventStreamSubscriber;
+    private static ResultStreamSubscriber resultStreamSubscriber;
     private static LinkedBlockingQueue<SendCommandResponse> connection;
 
     private Session(String ledgerName, QldbSessionV2AsyncClient client) {
@@ -84,7 +84,7 @@ class Session {
     static Session startSession(String ledgerName, QldbSessionV2AsyncClient client) {
         final Session session = new Session(ledgerName, client);
         commandStreamSubject = PublishSubject.create();
-        eventStreamSubscriber = new EventStreamSubscriber();
+        resultStreamSubscriber = new ResultStreamSubscriber();
         connection = new LinkedBlockingQueue<>(1);
         future = startSessionStream(ledgerName, client);
         throwStreamException();
@@ -96,7 +96,7 @@ class Session {
             throw QldbDriverException.create(QldbDriverException.create(Errors.SESSION_STREAM_ALREADY_OPEN.get()));
         } else {
             final SendCommandRequest sendCommandRequest = SendCommandRequest.builder().ledgerName(ledgerName).build();
-            logger.info("Start streaming...");
+            logger.debug("Sending SendCommand request: {}", sendCommandRequest);
             return client.sendCommand(sendCommandRequest, commandStreamSubject.toFlowable(BackpressureStrategy.ERROR), getResponseHandler());
         }
      }
@@ -105,27 +105,23 @@ class Session {
         return SendCommandResponseHandler.builder()
             .onResponse(sendCommandResponse -> {
                 System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received initial response " + sendCommandResponse);
-                // It'd be great if there is a way to distinguish whether the connection is established out of future.
-                // e.g. Server could return CompletableFuture<SendCommandResponse>...
                 connection.offer(sendCommandResponse);
                 sessionId = sendCommandResponse.sessionId();
             })
             .onError(e -> {
                 System.err.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Error occurred while stream - " + e.getMessage());
-                connection.clear();
             })
             .onComplete(() -> {
                 System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received complete");
-                connection.clear();
             })
             .onEventStream(publisher -> {
                 System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: On event stream...");
-                publisher.subscribe(eventStreamSubscriber);
+                publisher.subscribe(resultStreamSubscriber);
             }).build();
     }
 
     private void send(CommandStream command) {
-        System.out.println(Thread.currentThread().getName() + " Sending " + command);
+        logger.debug("Sending request: {}", command);
         commandStreamSubject.onNext(command);
     }
 
@@ -135,7 +131,7 @@ class Session {
             if (response == null) {
                 throw QldbDriverException.create(Errors.SESSION_STREAM_NOT_EXIST.get());
             }
-            connection.put(response);
+            connection.offer(response);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw QldbDriverException.create(Errors.GET_CONNECTION_INTERRUPTED.get());
@@ -169,6 +165,8 @@ class Session {
                     // Give up dead session and don't retry.
                     throw new ExecuteException((RuntimeException) ee.getCause(), false, false, false, "None");
                 }
+            } finally {
+                connection.clear();
             }
         }
     }
@@ -194,7 +192,7 @@ class Session {
         try {
             final StartTransactionRequest startTransactionRequest = CommandStream.startTransactionBuilder().build();
             send(startTransactionRequest);
-            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (StartTransactionResult) result;
         } catch (InterruptedException ie) {
@@ -234,7 +232,7 @@ class Session {
                     .transactionId(txnId)
                     .build();
             send(executeStatementRequest);
-            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (ExecuteStatementResult) result;
         } catch (InterruptedException ie) {
@@ -253,7 +251,7 @@ class Session {
                 .build();
 
             send(fetchPageRequest);
-            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (FetchPageResult) result;
         } catch (InterruptedException ie) {
@@ -270,7 +268,7 @@ class Session {
                     .transactionId(txnId)
                     .build();
             send(commitTransactionRequest);
-            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (CommitTransactionResult) result;
         } catch (InterruptedException ie) {
@@ -286,7 +284,7 @@ class Session {
             final AbortTransactionRequest abortTransactionRequest = CommandStream.abortTransactionBuilder().build();
 
             send(abortTransactionRequest);
-            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (AbortTransactionResult) result;
         } catch (InterruptedException ie) {
@@ -301,7 +299,7 @@ class Session {
         try {
             final EndSessionRequest endSessionRequest = CommandStream.endSessionBuilder().build();
             send(endSessionRequest);
-            ResultStream result = throwEventException(eventStreamSubscriber.waitForResult());
+            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (EndSessionResult) result;
         } catch (InterruptedException ie) {
