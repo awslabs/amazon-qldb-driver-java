@@ -123,14 +123,14 @@ class QldbSession {
 //                    false,
 //                    txnId
 //            );
-        } catch (RuntimeException re) {
-            throw new ExecuteException(
-                    re,
-                    false,
-                    this.tryAbort(txn),
-                    false,
-                    txnId
-            );
+//        } catch (RuntimeException re) {
+//            throw new ExecuteException(
+//                    re,
+//                    false,
+//                    this.tryAbort(txn),
+//                    false,
+//                    txnId
+//            );
         } finally {
             if (txn != null) {
                 txn.internalClose();

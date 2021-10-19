@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
 import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionResult;
@@ -171,17 +170,19 @@ class Session {
         }
     }
 
-    // Throw TransactionException and StatementException if result is an EventError.
-    // The exception will be handled directly in QldbSession.java.
-    private ResultStream throwEventException(ResultStream result) {
+    private ResultStream throwException(ResultStream result) {
         throwStreamException();
 
         if (result == null) {
             throw QldbDriverException.create(Errors.RESPONSE_QUEUE_EMTPY.get());
         }
         else if (result instanceof TransactionError) {
+            // Throw TransactionException if result is a TransactionError.
+            // The exception will be handled directly in QldbSession.java.
             throw TransactionException.create((TransactionError)result);
         } else if (result instanceof StatementError) {
+            // Throw StatementException if result is a StatementError.
+            // The exception will be handled directly in QldbSession.java.
             throw StatementException.create((StatementError)result);
         } else return result;
     }
@@ -192,7 +193,7 @@ class Session {
         try {
             final StartTransactionRequest startTransactionRequest = CommandStream.startTransactionBuilder().build();
             send(startTransactionRequest);
-            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
+            ResultStream result = throwException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (StartTransactionResult) result;
         } catch (InterruptedException ie) {
@@ -232,7 +233,7 @@ class Session {
                     .transactionId(txnId)
                     .build();
             send(executeStatementRequest);
-            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
+            ResultStream result = throwException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (ExecuteStatementResult) result;
         } catch (InterruptedException ie) {
@@ -251,7 +252,7 @@ class Session {
                 .build();
 
             send(fetchPageRequest);
-            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
+            ResultStream result = throwException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (FetchPageResult) result;
         } catch (InterruptedException ie) {
@@ -268,7 +269,7 @@ class Session {
                     .transactionId(txnId)
                     .build();
             send(commitTransactionRequest);
-            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
+            ResultStream result = throwException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (CommitTransactionResult) result;
         } catch (InterruptedException ie) {
@@ -284,7 +285,7 @@ class Session {
             final AbortTransactionRequest abortTransactionRequest = CommandStream.abortTransactionBuilder().build();
 
             send(abortTransactionRequest);
-            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
+            ResultStream result = throwException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (AbortTransactionResult) result;
         } catch (InterruptedException ie) {
@@ -299,7 +300,7 @@ class Session {
         try {
             final EndSessionRequest endSessionRequest = CommandStream.endSessionBuilder().build();
             send(endSessionRequest);
-            ResultStream result = throwEventException(resultStreamSubscriber.waitForResult());
+            ResultStream result = throwException(resultStreamSubscriber.waitForResult());
             System.out.println(Thread.currentThread().getName() + " Got command response: " + result);
             return (EndSessionResult) result;
         } catch (InterruptedException ie) {
@@ -320,7 +321,7 @@ class Session {
     public void close() {
         try {
             sendEndSession();
-        } catch (SdkServiceException e) {
+        } catch (ExecuteException | QldbSessionV2Exception e) {
             // We will only log issues closing the session, as QLDB will clean them up after a timeout.
             logger.warn("Errors closing session: {}", e.getMessage(), e);
         }

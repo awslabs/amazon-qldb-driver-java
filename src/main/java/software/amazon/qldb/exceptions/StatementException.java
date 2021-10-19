@@ -34,7 +34,7 @@ public class StatementException extends QldbSessionV2Exception {
      * @return A QldbDriverException with the error message and the status code of the statement execution failure.
      */
     public static StatementException create(StatementError error) {
-        if (error.code() == null) {
+        if (error.code() == null || error.code().isEmpty()) {
             return new StatementException(error.message());
         } else return new StatementException(error.message(), Integer.parseInt(error.code()));
     }

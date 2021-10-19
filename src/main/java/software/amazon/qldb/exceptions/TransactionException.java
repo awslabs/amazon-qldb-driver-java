@@ -35,7 +35,7 @@ public class TransactionException extends QldbSessionV2Exception {
      * @return A QldbDriverException with the error message and the status code of the transaction execution failure.
      */
     public static TransactionException create(TransactionError error) {
-        if (error.code() == null) {
+        if (error.code() == null || error.code().isEmpty()) {
             return new TransactionException(error.message());
         } else return new TransactionException(error.message(), Integer.parseInt(error.code()));
     }
