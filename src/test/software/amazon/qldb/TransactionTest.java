@@ -22,9 +22,12 @@ import static org.mockito.Mockito.verify;
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
-import java.nio.ByteBuffer;
+
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -32,13 +35,15 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.CommitTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.Page;
 import software.amazon.awssdk.services.qldbsessionv2.model.RateExceededException;
+import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
 import software.amazon.qldb.exceptions.TransactionException;
@@ -51,6 +56,15 @@ public class TransactionTest {
     private Session mockSession;
 
     @Mock
+    private CompletableFuture<ResultStream> mockExecuteResultFuture;
+
+    @Mock
+    private CompletableFuture<ResultStream> mockCommitResultFuture;
+
+    @Mock
+    private CompletableFuture<ResultStream> mockAbortResultFuture;
+
+    @Mock
     private StartTransactionResult mockStartTransaction;
 
     @Mock
@@ -58,28 +72,29 @@ public class TransactionTest {
 
     private Transaction txn;
 
-    private SdkBytes testCommitDigest;
-
     @BeforeEach
-    public void init() {
+    public void init() throws InterruptedException, ExecutionException {
         MockitoAnnotations.initMocks(this);
+        Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+                                             ArgumentMatchers.anyString())).thenReturn(mockExecuteResultFuture);
+        Mockito.when(mockStartTransaction.transactionId()).thenReturn(txnId);
         Page page = Page.builder().nextPageToken(null).values(Collections.emptyList()).build();
         ExecuteStatementResult dummyResult = ExecuteStatementResult.builder().firstPage(page).build();
-        Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
-                                             ArgumentMatchers.anyString())).thenReturn(dummyResult);
-        Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
-                                             ArgumentMatchers.anyString())).thenReturn(dummyResult);
-        Mockito.when(mockStartTransaction.transactionId()).thenReturn(txnId);
-        Mockito.when(mockSession.sendStartTransaction()).thenReturn(mockStartTransaction);
+        Mockito.when(mockExecuteResultFuture.get()).thenReturn(dummyResult);
+        Mockito.when(mockSession.sendAbort()).thenReturn(mockAbortResultFuture);
+        Mockito.when(mockSession.sendCommit(txnId)).thenReturn(mockCommitResultFuture);
+        Mockito.when(mockCommitResultFuture.get()).thenReturn(mockCommitTransaction);
+
 
         txn = new Transaction(mockSession, txnId, 1, system, null);
     }
 
     @Test
-    public void testAbort() {
+    public void testAbort() throws ExecutionException, InterruptedException {
         testExecute();
+
         txn.abort();
-        verify(mockSession, times(1)).sendAbort();
+        verify(mockAbortResultFuture, times(1)).get();
     }
 
 //    @Test
@@ -90,10 +105,8 @@ public class TransactionTest {
 //    }
 
     @Test
-    public void testCommit() {
+    public void testCommit() throws InterruptedException, ExecutionException {
         testExecute();
-        Mockito.when(mockSession.sendCommit(txnId))
-               .thenReturn(mockCommitTransaction);
         txn.commit();
         verify(mockSession, times(1)).sendCommit(txnId);
     }
@@ -107,19 +120,18 @@ public class TransactionTest {
 //    }
 
     @Test
-    public void testCommitExceptionAbortSuccessful() {
-        Mockito.when(mockSession.sendCommit(txnId))
-               .thenThrow(SdkServiceException.builder().message("").build());
+    public void testCommitExceptionAbortSuccessful() throws InterruptedException, ExecutionException {
+        Mockito.when(mockCommitResultFuture.get())
+               .thenThrow(new ExecutionException(SdkServiceException.builder().message("").build()));
         assertThrows(SdkServiceException.class, () -> txn.commit());
     }
 
     @Test
-    public void testCommitExceptionAbortException() {
+    public void testCommitExceptionAbortException() throws InterruptedException, ExecutionException {
         final SdkClientException se1 = SdkClientException.builder().message("").build();
         final SdkClientException se2 = SdkClientException.builder().message("").build();
-
-        Mockito.when(mockSession.sendCommit(txnId)).thenThrow(se1);
-        Mockito.when(mockSession.sendAbort()).thenThrow(se2);
+        Mockito.when(mockCommitResultFuture.get()).thenThrow(new ExecutionException(se1));
+        Mockito.when(mockAbortResultFuture.get()).thenThrow(new ExecutionException(se2));
 
         assertThrows(SdkClientException.class, () -> {
             try {
@@ -132,18 +144,18 @@ public class TransactionTest {
     }
 
     @Test
-    public void testExecute() {
+    public void testExecute() throws ExecutionException, InterruptedException {
         executeQuery("stmtQuery", 1);
     }
 
     @Test
-    public void testExecuteExecute() {
+    public void testExecuteExecute() throws ExecutionException, InterruptedException {
         executeQuery("stmtQuery", 1);
         executeQuery("stmtQuery2", 2);
     }
 
     @Test
-    public void testExecuteWithParams() {
+    public void testExecuteWithParams() throws ExecutionException, InterruptedException {
         final String query = "stmtQuery";
         final List<IonValue> params = Collections.singletonList(system.singleValue("myValue"));
         final Result result = txn.execute(query, params);
@@ -162,7 +174,7 @@ public class TransactionTest {
     }
 
     @Test
-    public void testExecuteWithTransactionError() {
+    public void testExecuteWithTransactionError() throws InterruptedException {
         final String query = "stmtQuery";
 
         Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
@@ -172,7 +184,7 @@ public class TransactionTest {
     }
 
     @Test
-    public void testExecuteWithRateExceeded() {
+    public void testExecuteWithRateExceeded() throws InterruptedException {
         final String query = "stmtQuery";
 
         Mockito.when(mockSession.sendExecute(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
@@ -201,7 +213,7 @@ public class TransactionTest {
 //        assertThrows(InvalidSessionException.class, () -> txn.execute(query));
 //    }
 
-    private void executeQuery(String query, int numExecutes) {
+    private void executeQuery(String query, int numExecutes) throws ExecutionException, InterruptedException {
         final Result result = txn.execute(query);
         assertNotNull(result);
 

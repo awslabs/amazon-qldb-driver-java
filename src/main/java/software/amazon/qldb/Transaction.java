@@ -20,12 +20,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.utils.Validate;
+import software.amazon.qldb.exceptions.Errors;
+import software.amazon.qldb.exceptions.QldbDriverException;
 
 /**
  * <p>Interface that represents an active transaction with QLDB.</p>
@@ -81,8 +85,15 @@ class Transaction {
      * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void abort() {
-        internalClose();
-        session.sendAbort();
+        try {
+            internalClose();
+            session.sendAbort().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        } catch (ExecutionException e) {
+            throw (SdkException)e.getCause();
+        }
     }
 
     /**
@@ -95,29 +106,41 @@ class Transaction {
      * @throws IllegalStateException if the transaction has been committed or aborted already, or if the returned commit
      *                               digest from QLDB does not match.
      * @throws RuntimeException if an Error event has been detected within the transaction.
-     *         TODO: Throw StatementError or TransactionError
+     *
      * @throws software.amazon.awssdk.core.exception.SdkException if there is an error communicating with QLDB.
      */
     void commit() {
-        session.sendCommit(txnId);
+        try {
+            session.sendCommit(txnId).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        } catch (ExecutionException e) {
+            throw (SdkException)e.getCause();
+        }
     }
 
-    Result execute(String statement) {
+    Result execute(String statement) throws ExecutionException {
         return execute(statement, Collections.emptyList());
     }
 
-    Result execute(String statement, List<IonValue> parameters) {
+    Result execute(String statement, List<IonValue> parameters) throws ExecutionException {
         software.amazon.awssdk.utils.Validate.paramNotBlank(statement, "statement");
         Validate.notNull(parameters, "parameters");
 
-        final ExecuteStatementResult executeStatementResult = session.sendExecute(statement, parameters, txnId);
-        final StreamResult result = new StreamResult(session, executeStatementResult, txnId,
-                readAheadBufferCount, ionSystem, executorService);
-        results.add(result);
-        return result;
+        final ExecuteStatementResult executeStatementResult;
+        try {
+            executeStatementResult = (ExecuteStatementResult) session.sendExecute(statement, parameters, txnId).get();
+            final StreamResult result = new StreamResult(session, executeStatementResult, txnId,
+                    readAheadBufferCount, ionSystem, executorService);
+            results.add(result);
+            return result;
+        } catch (InterruptedException ie) {
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        }
     }
 
-    Result execute(String statement, IonValue... parameters) {
+    Result execute(String statement, IonValue... parameters) throws ExecutionException {
         Validate.notNull(parameters, "parameters");
 
         return execute(statement, Arrays.asList(parameters));

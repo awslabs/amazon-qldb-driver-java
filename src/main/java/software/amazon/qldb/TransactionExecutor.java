@@ -15,6 +15,9 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+
+import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.qldb.exceptions.TransactionAbortedException;
 
 /**
@@ -48,11 +51,15 @@ public class TransactionExecutor implements Executable {
      *              The PartiQL statement to be executed against QLDB.
      *
      * @return The result of executing the statement.
-     * @throws software.amazon.awssdk.services.qldbsession.model.QldbSessionException if there is an error executing against QLDB.
+     * @throws QldbSessionV2Exception if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement) {
-        return transaction.execute(statement);
+        try {
+            return transaction.execute(statement);
+        } catch (ExecutionException e) {
+            throw (QldbSessionV2Exception)e.getCause();
+        }
     }
 
     /**
@@ -64,11 +71,15 @@ public class TransactionExecutor implements Executable {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws software.amazon.awssdk.services.qldbsession.model.QldbSessionException if there is an error executing against QLDB.
+     * @throws QldbSessionV2Exception if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement, List<IonValue> parameters) {
-        return transaction.execute(statement, parameters);
+        try {
+            return transaction.execute(statement, parameters);
+        } catch (ExecutionException e) {
+            throw (QldbSessionV2Exception)e.getCause();
+        }
     }
 
     /**
@@ -80,11 +91,15 @@ public class TransactionExecutor implements Executable {
      *              The parameters to be used with the PartiQL statement, for each ? placeholder in the statement.
      *
      * @return The result of executing the statement.
-     * @throws software.amazon.awssdk.services.qldbsession.model.QldbSessionException if there is an error executing against QLDB.
+     * @throws QldbSessionV2Exception if there is an error executing against QLDB.
      */
     @Override
     public Result execute(String statement, IonValue... parameters) {
-        return transaction.execute(statement, parameters);
+        try {
+            return transaction.execute(statement, parameters);
+        } catch (ExecutionException e) {
+            throw (QldbSessionV2Exception)e.getCause();
+        }
     }
 
     /**

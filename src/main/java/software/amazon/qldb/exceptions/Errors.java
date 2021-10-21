@@ -39,7 +39,8 @@ public enum Errors {
     SERIALIZING_PARAMS,     // driver problem
     SESSION_STREAM_ALREADY_OPEN, // driver problem
     SESSION_STREAM_NOT_EXIST, // driver problem
-    RESPONSE_QUEUE_EMTPY, // driver problem
+    RESULT_QUEUE_EMTPY, // driver problem
+    SUBSCRIBER_TERMINATE, // driver problem
 
     GENERIC_EXCEPTION;
 

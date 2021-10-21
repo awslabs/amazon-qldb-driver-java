@@ -17,6 +17,7 @@ import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
@@ -208,15 +210,23 @@ class ResultRetriever {
          * Retrieve the next chunk of data from QLDB.
          *
          * @return The next chunk of data from QLDB.
-         * @throws QldbDriverException if an unexpected error occurs during result retrieval.
+         * @throws QldbSessionV2Exception if an unexpected error occurs during result retrieval.
          */
         Page getNextPage() {
-            final FetchPageResult fetchPageResult = session.sendFetchPage(txnId, nextPageToken);
-            updateMetrics(fetchPageResult);
+            final FetchPageResult fetchPageResult;
+            try {
+                fetchPageResult = (FetchPageResult) session.sendFetchPage(txnId, nextPageToken).get();
+                updateMetrics(fetchPageResult);
 
-            final Page page = fetchPageResult.page();
-            nextPageToken = page.nextPageToken();
-            return page;
+                final Page page = fetchPageResult.page();
+                nextPageToken = page.nextPageToken();
+                return page;
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+            } catch (ExecutionException e) {
+                throw (QldbSessionV2Exception)e.getCause();
+            }
         }
 
         /**

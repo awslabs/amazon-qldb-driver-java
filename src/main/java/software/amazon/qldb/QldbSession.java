@@ -24,8 +24,11 @@ import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
+import software.amazon.awssdk.services.qldbsessionv2.model.StatementError;
 import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
+import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.ExecuteException;
+import software.amazon.qldb.exceptions.QldbDriverException;
 import software.amazon.qldb.exceptions.StatementException;
 import software.amazon.qldb.exceptions.TransactionException;
 
@@ -43,6 +46,7 @@ class QldbSession {
     private final int readAhead;
     private final ExecutorService executorService;
     private Session session;
+
     private final IonSystem ionSystem;
 
     QldbSession(Session session, int readAhead, IonSystem ionSystem, ExecutorService executorService) {
@@ -70,67 +74,34 @@ class QldbSession {
             }
             txn.commit();
             return returnedValue;
-//        } catch (InvalidSessionException ise) {
-//            boolean isAborted = false;
-//            boolean transactionExpired = ise.getMessage().matches("Transaction.*has expired.*");
-//            if (transactionExpired) {
-//                isAborted = this.tryAbort(txn);
-//            }
-//            throw new ExecuteException(
-//                    ise,
-//                    !transactionExpired,
-//                    isAborted,
-//                    true,
-//                    txnId
-//            );
-//        } catch (OccConflictException oce) {
-//            throw new ExecuteException(
-//                    oce,
-//                    true,
-//                    true,
-//                    false,
-//                    txnId
-//            );
-        } catch (ExecuteException ee) {
-            // Route the exception to QldbDriverImpl.java
-            throw ee;
-        } catch (TransactionException | StatementException e) {
-            // Session is still alive. Retry with a new transaction.
+        } catch (TransactionException|StatementException|SdkClientException sce) {
+            // TransactionException and StatementException should be retried with a new transaction
+            // SdkClientException means that client couldn't reach out QLDB so transaction should be retried.
             throw new ExecuteException(
-                    e,
+                    sce,
                     true,
                     this.tryAbort(txn),
                     false,
                     txnId
             );
         } catch (QldbSessionV2Exception qse) {
+            // Give up dead session. Retry with a new session when it's 500/503.
             boolean retryable = (qse.statusCode() == HttpStatus.SC_INTERNAL_SERVER_ERROR)
                     || (qse.statusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE);
             throw new ExecuteException(
                     qse,
                     retryable,
+                    false,
+                    false,
+                    txnId);
+        } catch (RuntimeException re) {
+            throw new ExecuteException(
+                    re,
+                    false,
                     this.tryAbort(txn),
                     false,
                     txnId
             );
-            // TODO: We don't need this since SdkClientException has been bubbled up out of the transaction.
-//        } catch (SdkClientException sce) {
-//            // SdkClientException means that client couldn't reach out QLDB so transaction should be retried.
-//            throw new ExecuteException(
-//                    sce,
-//                    true,
-//                    this.tryAbort(txn),
-//                    false,
-//                    txnId
-//            );
-//        } catch (RuntimeException re) {
-//            throw new ExecuteException(
-//                    re,
-//                    false,
-//                    this.tryAbort(txn),
-//                    false,
-//                    txnId
-//            );
         } finally {
             if (txn != null) {
                 txn.internalClose();
@@ -143,8 +114,16 @@ class QldbSession {
     }
 
     private Transaction startTransaction() {
-        final StartTransactionResult startTransaction = session.sendStartTransaction();
-        return new Transaction(session, startTransaction.transactionId(), readAhead, ionSystem, executorService);
+        final StartTransactionResult startTransaction;
+        try {
+            startTransaction = (StartTransactionResult) session.sendStartTransaction().get();
+            return new Transaction(session, startTransaction.transactionId(), readAhead, ionSystem, executorService);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
+        } catch (ExecutionException ee) {
+            throw (QldbSessionV2Exception)ee.getCause();
+        }
     }
 
     private boolean tryAbort(Transaction txn) {

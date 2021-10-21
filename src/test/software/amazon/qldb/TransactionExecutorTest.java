@@ -20,6 +20,8 @@ import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -42,7 +44,7 @@ public class TransactionExecutorTest {
     private Transaction mockTxn;
 
     @BeforeEach
-    public void init() {
+    public void init() throws ExecutionException {
         MockitoAnnotations.initMocks(this);
 
         Mockito.when(mockTxn.getTransactionId()).thenReturn("txnId");
@@ -59,7 +61,7 @@ public class TransactionExecutorTest {
     }
 
     @Test
-    public void testExecuteNoParams() {
+    public void testExecuteNoParams() throws ExecutionException {
         final String query = "my query";
         final Result result = txnExec.execute(query);
         assertEquals(mockResult, result);
@@ -70,7 +72,7 @@ public class TransactionExecutorTest {
     }
 
     @Test
-    public void testExecuteEmptyParams() {
+    public void testExecuteEmptyParams() throws ExecutionException {
         final String query = "my query";
         final List<IonValue> params = Collections.emptyList();
         final Result result = txnExec.execute(query, params);
@@ -84,7 +86,7 @@ public class TransactionExecutorTest {
     }
 
     @Test
-    public void testExecuteOneParam() {
+    public void testExecuteOneParam() throws ExecutionException {
         final String query = "my query";
         final List<IonValue> params = Collections.singletonList(system.singleValue("myValue"));
         final Result result = txnExec.execute(query, params);

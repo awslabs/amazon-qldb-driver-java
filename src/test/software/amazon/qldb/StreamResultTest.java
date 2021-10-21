@@ -27,6 +27,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -37,6 +40,7 @@ import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.qldbsessionv2.model.ExecuteStatementResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
 
 public class StreamResultTest {
@@ -168,7 +172,7 @@ public class StreamResultTest {
     }
 
     @Test
-    public void testIteratorNextRaisesException() throws IOException {
+    public void testIteratorNextRaisesException() throws IOException, InterruptedException {
         final SdkServiceException exception = SdkServiceException.builder().message("an Error").build();
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
@@ -215,10 +219,10 @@ public class StreamResultTest {
     }
 
     @Test
-    public void testQueryStatsNullExecuteHasFetch() throws IOException {
+    public void testQueryStatsNullExecuteHasFetch() throws IOException, InterruptedException, ExecutionException {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
-        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString())).thenReturn(mockFetchResult);
+        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString()).get()).thenReturn(mockFetchResult);
         Mockito.when(mockFetchResult.page()).thenReturn(mockFetchPage);
 
         Mockito.when(mockFetchResult.consumedIOs()).thenReturn(mockFetchIOUsage);
@@ -249,10 +253,10 @@ public class StreamResultTest {
     }
 
     @Test
-    public void testQueryStatsHasExecuteNullFetch() throws IOException {
+    public void testQueryStatsHasExecuteNullFetch() throws IOException, InterruptedException, ExecutionException {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
-        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString())).thenReturn(mockFetchResult);
+        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString()).get()).thenReturn(mockFetchResult);
         Mockito.when(mockFetchResult.page()).thenReturn(mockFetchPage);
 
         Mockito.when(mockStatementResult.consumedIOs()).thenReturn(mockExecuteIOUsage);
@@ -284,10 +288,10 @@ public class StreamResultTest {
     }
 
     @Test
-    public void testQueryStatsHasExecuteHasFetch() throws IOException {
+    public void testQueryStatsHasExecuteHasFetch() throws IOException, InterruptedException, ExecutionException {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
-        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString())).thenReturn(mockFetchResult);
+        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString()).get()).thenReturn(mockFetchResult);
         Mockito.when(mockFetchResult.page()).thenReturn(mockFetchPage);
 
         Mockito.when(mockStatementResult.consumedIOs()).thenReturn(mockExecuteIOUsage);

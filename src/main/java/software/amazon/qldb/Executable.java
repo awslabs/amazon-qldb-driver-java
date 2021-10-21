@@ -15,6 +15,7 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonValue;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
  * This interface provides the methods to execute PartiQL statements towards a QLDB Ledger.

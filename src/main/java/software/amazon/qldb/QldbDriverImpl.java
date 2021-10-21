@@ -16,8 +16,6 @@ package software.amazon.qldb;
 import com.amazon.ion.IonSystem;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -25,14 +23,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.ThreadSafe;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
-import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.awssdk.utils.Validate;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.ExecuteException;
@@ -231,8 +226,17 @@ class QldbDriverImpl implements QldbDriver {
     }
 
     private QldbSession createNewSession() {
-        final Session session = Session.startSession(ledgerName, amazonQldbSession);
-        return new QldbSession(session, readAhead, ionSystem, executorService);
+        final Session session = new Session(ledgerName, amazonQldbSession);
+        try {
+            // block for starting a stream within the session.
+            session.startSessionStream().get();
+            return new QldbSession(session, readAhead, ionSystem, executorService);
+        } catch (ExecutionException ee) {
+            throw new ExecuteException((RuntimeException) ee.getCause(), true, false, true, "None");
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw QldbDriverException.create(Errors.GET_CONNECTION_INTERRUPTED.get());
+        }
     }
 
     private void releaseSession(QldbSession session) {

@@ -26,6 +26,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -33,8 +36,10 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.qldbsessionv2.model.CommandStream;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.Page;
+import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
@@ -79,14 +84,14 @@ public class ResultRetrieverTest {
     private TimingInformation mockTimingInfo;
 
     @BeforeEach
-    public void init() {
+    public void init() throws InterruptedException, ExecutionException {
         MockitoAnnotations.initMocks(this);
         Mockito.when(mockPage.nextPageToken()).thenReturn(MOCK_NEXT_PAGE_TOKEN);
         Mockito.when(mockPage.values()).thenReturn(MOCK_EMPTY_VALUES);
         Mockito.when(mockTerminalPage.nextPageToken()).thenReturn(null);
         Mockito.when(mockTerminalPage.values()).thenReturn(MOCK_EMPTY_VALUES);
         Mockito.when(mockFetchPage.page()).thenReturn(mockTerminalPage);
-        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockFetchPage);
+        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN).get()).thenReturn(mockFetchPage);
         Mockito.when(mockFetchPage.consumedIOs()).thenReturn(mockConsumedIOs);
         Mockito.when(mockFetchPage.timingInformation()).thenReturn(mockSessionTimingInfo);
     }
@@ -97,8 +102,8 @@ public class ResultRetrieverTest {
     }
 
     @Test
-    public void testClosedRetriever() {
-        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN)).thenReturn(mockFetchPage);
+    public void testClosedRetriever() throws InterruptedException, ExecutionException {
+        Mockito.when(mockSession.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN).get()).thenReturn(mockFetchPage);
         initRetriever();
         resultRetriever.close();
 
@@ -159,7 +164,7 @@ public class ResultRetrieverTest {
     }
 
     @Test
-    public void testRunRaisesException() {
+    public void testRunRaisesException() throws InterruptedException {
         final SdkServiceException exception = SdkServiceException.builder().message("").build();
         Mockito.doThrow(exception).when(mockSession).sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN);
         initRetriever();
@@ -188,7 +193,7 @@ public class ResultRetrieverTest {
     }
 
     @Test
-    public void testGetNextResultRaisesException() {
+    public void testGetNextResultRaisesException() throws InterruptedException {
         final SdkServiceException exception = SdkServiceException.builder().message("").build();
 
         Mockito.doThrow(exception).when(mockSession).sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN);

@@ -46,7 +46,7 @@ public class StatementExecutionIntegTest {
     private static ValueFactory valueFactory = IonSystemBuilder.standard().build();
 
     @BeforeAll
-    public static void setup() throws InterruptedException {
+    public static void setup() {
 //        ledgerManager = new LedgerManager(Constants.LEDGER_NAME+System.getProperty("ledgerSuffix"), System.getProperty("region"));
         ledgerManager = new LedgerManager(Constants.LEDGER_NAME, "us-east-1");
 

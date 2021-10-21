@@ -13,6 +13,8 @@
 
 package software.amazon.qldb;
 
+import java.util.concurrent.ExecutionException;
+
 /**
  * A functional interface that contains all the code to be executed in a QLDB 
  * transaction and returns a value.
