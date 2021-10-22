@@ -16,41 +16,20 @@ import java.util.concurrent.TimeUnit;
 
 class ResultStreamSubscriber implements Subscriber<ResultStream> {
 
-    private final LinkedBlockingQueue<CompletableFuture<ResultStream>> results;
     private boolean done;
     private Subscription subscription;
+    private final LinkedBlockingQueue<CompletableFuture<ResultStream>> futures;
 
-    protected ResultStreamSubscriber() {
-        this.results = new LinkedBlockingQueue<>();
-    }
-
-    CompletableFuture<ResultStream> pollResultFutureFromQueue() throws InterruptedException {
-        CompletableFuture<ResultStream> resultFuture = results.poll(1000L, TimeUnit.MILLISECONDS);
-
-        if (resultFuture == null) throw QldbDriverException.create(Errors.RESULT_QUEUE_EMTPY.get());
-
-        return resultFuture.whenComplete((r, e) -> {
-            if (e != null) {
-                throw QldbDriverException.create(Errors.SUBSCRIBER_TERMINATE.get());
-            }
-
-            if (r instanceof TransactionError) {
-                // Complete exceptionally if result is a TransactionError.
-                // The exception will be handled directly in QldbSession.java.
-                throw TransactionException.create((TransactionError)r);
-            } else if (r instanceof StatementError) {
-                // Complete exceptionally if result is a StatementError.
-                // The exception will be handled directly in QldbSession.java.
-                throw StatementException.create((StatementError)r);
-            }
-        });
+    protected ResultStreamSubscriber(LinkedBlockingQueue<CompletableFuture<ResultStream>> futures) {
+        this.futures = futures;
     }
 
     @Override
     public void onSubscribe(Subscription s) {
         System.out.println(Thread.currentThread().getName() + " Subscriber: On subscribe ");
 
-        if (s == null) throw QldbDriverException.create(Errors.SUBSCRIBER_ILLEGAL.get());
+        // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `Subscription` is `null`
+        if (s == null) throw null;
 
         if (subscription != null) { // If someone has made a mistake and added this Subscriber multiple times, let's handle it gracefully
             s.cancel(); // Cancel the additional subscription
@@ -64,13 +43,22 @@ class ResultStreamSubscriber implements Subscriber<ResultStream> {
     public void onNext(ResultStream result) {
         System.out.println(Thread.currentThread().getName() + " Subscriber: Received event " + result);
 
-        if (result == null) throw QldbDriverException.create(Errors.SUBSCRIBER_ILLEGAL.get());
+        // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `element` is `null`
+        if (result == null) throw null;
 
-        if (!done) { // If we aren't already done
+        if (!done) {
             try {
-                CompletableFuture<ResultStream> future = new CompletableFuture<>();
-                future.complete(result);
-                results.offer(future);
+                final CompletableFuture<ResultStream> future = futures.poll(1000L, TimeUnit.MILLISECONDS);
+                if (future == null) {
+                   throw QldbDriverException.create(Errors.FUTURE_QUEUE_EMTPY.get());
+                }
+
+                if (result instanceof TransactionError) {
+                    future.completeExceptionally(TransactionException.create((TransactionError)result));
+                } else if (result instanceof StatementError) {
+                    future.completeExceptionally(StatementException.create((StatementError)result));
+                } else future.complete(result);
+
                 subscription.request(1);
             } catch (final Throwable t) {
                 done();
@@ -81,17 +69,17 @@ class ResultStreamSubscriber implements Subscriber<ResultStream> {
 
     @Override
     public void onError(Throwable t) {
-        System.err.println("ResultStreamSubscriber: Error occurred while stream - " + t.getMessage());
+        System.err.println(Thread.currentThread().getName() + "Subscriber: Error occurred while stream - " + t.getMessage());
 
-        CompletableFuture<ResultStream> future = new CompletableFuture<>();
-        future.completeExceptionally(t);
-        results.offer(future);
+        // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `Throwable` is `null`
+        if (t == null) throw null;
+
         done();
     }
 
     @Override
     public void onComplete() {
-        System.out.println("ResultStreamSubscriber: Finished streaming all events");
+        System.out.println(Thread.currentThread().getName() + "Subscriber: Finished streaming all events");
 
         done();
     }

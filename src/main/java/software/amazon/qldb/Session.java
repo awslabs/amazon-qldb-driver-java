@@ -26,11 +26,15 @@ import software.amazon.awssdk.utils.CompletableFutureUtils;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
+import javax.xml.ws.EndpointReference;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.sql.Driver;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -46,7 +50,7 @@ class Session {
     private final CompletableFuture<SendCommandResponse> connectionFuture;
     private final PublishSubject<CommandStream> commandStreamSubject;
     private final ResultStreamSubscriber resultStreamSubscriber;
-    private CompletableFuture<Void> streamFuture;
+    private final LinkedBlockingQueue<CompletableFuture<ResultStream>> futures;
     private String sessionId;
 
     Session(String ledgerName, QldbSessionV2AsyncClient client) {
@@ -54,13 +58,16 @@ class Session {
         this.client = client;
         this.connectionFuture = new CompletableFuture<>();
         this.commandStreamSubject = PublishSubject.create();
-        this.resultStreamSubscriber = new ResultStreamSubscriber();
+        this.futures = new LinkedBlockingQueue<>();
+        this.resultStreamSubscriber = new ResultStreamSubscriber(futures);
     }
 
     CompletableFuture<SendCommandResponse> startSessionStream() {
         final SendCommandRequest sendCommandRequest = SendCommandRequest.builder().ledgerName(ledgerName).build();
         logger.debug("Sending SendCommand request: {}", sendCommandRequest);
-        streamFuture = client.sendCommand(sendCommandRequest, commandStreamSubject.toFlowable(BackpressureStrategy.ERROR), getResponseHandler());
+
+        // TODO: Revisit back pressure strategy.
+        client.sendCommand(sendCommandRequest, commandStreamSubject.toFlowable(BackpressureStrategy.ERROR), getResponseHandler());
         return connectionFuture;
      }
 
@@ -73,12 +80,23 @@ class Session {
             })
             .onError(e -> {
                 System.err.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Error occurred while stream - " + e.getMessage());
-                if (!connectionFuture.isDone()) connectionFuture.completeExceptionally(e);
-                else streamFuture.completeExceptionally(e);
+                if (!connectionFuture.isDone()){
+                    connectionFuture.completeExceptionally(e);
+                }
+                else {
+                    try {
+                        final CompletableFuture<ResultStream> future = futures.poll(1000L, TimeUnit.MILLISECONDS);
+
+                        if (future == null) throw QldbDriverException.create(Errors.FUTURE_QUEUE_EMTPY.get());
+
+                        future.completeExceptionally(e);
+                    } catch (Exception ex) {
+                        logger.error("Errors completing future: {}", ex.getMessage(), ex);
+                    }
+                }
             })
             .onComplete(() -> {
                 System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received complete");
-                streamFuture.complete(null);
             })
             .onEventStream(publisher -> {
                 System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: On event stream...");
@@ -91,15 +109,26 @@ class Session {
         commandStreamSubject.onNext(command);
     }
 
-    CompletableFuture<ResultStream> sendStartTransaction() throws InterruptedException {
+//    private CompletableFuture<ResultStream> pollResultFutureFromQueue() throws InterruptedException {
+//        final CompletableFuture<ResultStream> future = futures.poll(1000L, TimeUnit.MILLISECONDS);
+//        if (future == null) throw QldbDriverException.create(Errors.FUTURE_QUEUE_EMTPY.get());
+//
+//        if (streamFuture.isCompletedExceptionally()) {
+//            if (future.isDone()) throw QldbDriverException.create(Errors.SUBSCRIBER_ILLEGAL.get());
+//            CompletableFutureUtils.forwardExceptionTo(streamFuture, future);
+//        }
+//        return future;
+//    }
+
+    CompletableFuture<ResultStream> sendStartTransaction() {
         final StartTransactionRequest startTransactionRequest = CommandStream.startTransactionBuilder().build();
+        final CompletableFuture<ResultStream> future = new CompletableFuture<>();
+        futures.offer(future);
         send(startTransactionRequest);
-        CompletableFuture<ResultStream> resultFuture = resultStreamSubscriber.pollResultFutureFromQueue();
-        if (streamFuture.isCompletedExceptionally()) CompletableFutureUtils.forwardExceptionTo(streamFuture, resultFuture);
-        return resultFuture;
+        return future;
     }
 
-    CompletableFuture<ResultStream> sendExecute(String statement, List<IonValue> parameters, String txnId) throws InterruptedException {
+    CompletableFuture<ResultStream> sendExecute(String statement, List<IonValue> parameters, String txnId) {
         final List<ValueHolder> byteParameters = new ArrayList<>(parameters.size());
 
         if (!parameters.isEmpty()) {
@@ -127,50 +156,47 @@ class Session {
                 .parameters(byteParameters)
                 .transactionId(txnId)
                 .build();
+        final CompletableFuture<ResultStream> future = new CompletableFuture<>();
+        futures.offer(future);
         send(executeStatementRequest);
-        CompletableFuture<ResultStream> resultFuture = resultStreamSubscriber.pollResultFutureFromQueue();
-        if (streamFuture.isCompletedExceptionally()) CompletableFutureUtils.forwardExceptionTo(streamFuture, resultFuture);
-        return resultFuture;
+        return future;
     }
 
-    CompletableFuture<ResultStream> sendFetchPage(String txnId, String nextPageToken) throws InterruptedException {
+    CompletableFuture<ResultStream> sendFetchPage(String txnId, String nextPageToken) {
         final FetchPageRequest fetchPageRequest = CommandStream.fetchPageBuilder()
                 .transactionId(txnId)
                 .nextPageToken(nextPageToken)
                 .build();
-
+        final CompletableFuture<ResultStream> future = new CompletableFuture<>();
+        futures.offer(future);
         send(fetchPageRequest);
-        CompletableFuture<ResultStream> resultFuture = resultStreamSubscriber.pollResultFutureFromQueue();
-        if (streamFuture.isCompletedExceptionally()) CompletableFutureUtils.forwardExceptionTo(streamFuture, resultFuture);
-        return resultFuture;
+        return future;
     }
 
-    CompletableFuture<ResultStream> sendCommit(String txnId) throws InterruptedException {
+    CompletableFuture<ResultStream> sendCommit(String txnId) {
         final CommitTransactionRequest commitTransactionRequest = CommandStream.commitTransactionBuilder()
                 .transactionId(txnId)
                 .build();
-
+        final CompletableFuture<ResultStream> future = new CompletableFuture<>();
+        futures.offer(future);
         send(commitTransactionRequest);
-        CompletableFuture<ResultStream> resultFuture = resultStreamSubscriber.pollResultFutureFromQueue();
-        if (streamFuture.isCompletedExceptionally()) CompletableFutureUtils.forwardExceptionTo(streamFuture, resultFuture);
-        return resultFuture;
+        return future;
     }
 
-    CompletableFuture<ResultStream> sendAbort() throws InterruptedException {
+    CompletableFuture<ResultStream> sendAbort() {
         final AbortTransactionRequest abortTransactionRequest = CommandStream.abortTransactionBuilder().build();
-
+        final CompletableFuture<ResultStream> future = new CompletableFuture<>();
+        futures.offer(future);
         send(abortTransactionRequest);
-        CompletableFuture<ResultStream> resultFuture = resultStreamSubscriber.pollResultFutureFromQueue();
-        if (streamFuture.isCompletedExceptionally()) CompletableFutureUtils.forwardExceptionTo(streamFuture, resultFuture);
-        return resultFuture;
+        return future;
     }
 
-    CompletableFuture<ResultStream>  sendEndSession() throws InterruptedException {
+    CompletableFuture<ResultStream>  sendEndSession() {
         final EndSessionRequest endSessionRequest = CommandStream.endSessionBuilder().build();
+        final CompletableFuture<ResultStream> future = new CompletableFuture<>();
+        futures.offer(future);
         send(endSessionRequest);
-        CompletableFuture<ResultStream> resultFuture = resultStreamSubscriber.pollResultFutureFromQueue();
-        if (streamFuture.isCompletedExceptionally()) CompletableFutureUtils.forwardExceptionTo(streamFuture, resultFuture);
-        return resultFuture;
+        return future;
     }
 
     /**
