@@ -2,6 +2,8 @@ package software.amazon.qldb;
 
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.qldbsessionv2.model.ResultStream;
 import software.amazon.awssdk.services.qldbsessionv2.model.StatementError;
 import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
@@ -14,19 +16,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-class ResultStreamSubscriber implements Subscriber<ResultStream> {
+class EventStreamSubscriber implements Subscriber<ResultStream> {
+    private static final Logger logger = LoggerFactory.getLogger(StreamResult.class);
 
     private boolean done;
     private Subscription subscription;
     private final LinkedBlockingQueue<CompletableFuture<ResultStream>> futures;
 
-    protected ResultStreamSubscriber(LinkedBlockingQueue<CompletableFuture<ResultStream>> futures) {
+    protected EventStreamSubscriber(LinkedBlockingQueue<CompletableFuture<ResultStream>> futures) {
         this.futures = futures;
     }
 
     @Override
     public void onSubscribe(Subscription s) {
-        System.out.println(Thread.currentThread().getName() + " Subscriber: On subscribe ");
+        logger.debug("Event stream is subscribed.");
 
         // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `Subscription` is `null`
         if (s == null) throw null;
@@ -41,7 +44,7 @@ class ResultStreamSubscriber implements Subscriber<ResultStream> {
 
     @Override
     public void onNext(ResultStream result) {
-        System.out.println(Thread.currentThread().getName() + " Subscriber: Received event " + result);
+        logger.debug("Event stream subscriber received an event {}", result);
 
         // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `element` is `null`
         if (result == null) throw null;
@@ -69,7 +72,7 @@ class ResultStreamSubscriber implements Subscriber<ResultStream> {
 
     @Override
     public void onError(Throwable t) {
-        System.err.println(Thread.currentThread().getName() + "Subscriber: Error occurred while stream - " + t.getMessage());
+        logger.error("Event stream subscriber is terminated by an Error {}", t.getMessage(), t);
 
         // As per rule 2.13, we need to throw a `java.lang.NullPointerException` if the `Throwable` is `null`
         if (t == null) throw null;
@@ -79,7 +82,7 @@ class ResultStreamSubscriber implements Subscriber<ResultStream> {
 
     @Override
     public void onComplete() {
-        System.out.println(Thread.currentThread().getName() + "Subscriber: Finished streaming all events");
+        logger.debug("Event stream subscriber is terminated successfully");
 
         done();
     }

@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsessionv2.model.FetchPageResult;
 import software.amazon.awssdk.services.qldbsessionv2.model.Page;
 import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
@@ -225,7 +226,7 @@ class ResultRetriever {
                 Thread.currentThread().interrupt();
                 throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
             } catch (ExecutionException e) {
-                throw (QldbSessionV2Exception)e.getCause();
+                throw (SdkException)e.getCause();
             }
         }
 

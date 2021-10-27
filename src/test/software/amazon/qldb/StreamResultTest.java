@@ -64,6 +64,9 @@ public class StreamResultTest {
     private Session mockSession;
 
     @Mock
+    private CompletableFuture<ResultStream> mockFetchResultFuture;
+
+    @Mock
     private ExecuteStatementResult mockStatementResult;
 
     @Mock
@@ -222,7 +225,8 @@ public class StreamResultTest {
     public void testQueryStatsNullExecuteHasFetch() throws IOException, InterruptedException, ExecutionException {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
-        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString()).get()).thenReturn(mockFetchResult);
+        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString())).thenReturn(mockFetchResultFuture);
+        Mockito.when(mockFetchResultFuture.get()).thenReturn(mockFetchResult);
         Mockito.when(mockFetchResult.page()).thenReturn(mockFetchPage);
 
         Mockito.when(mockFetchResult.consumedIOs()).thenReturn(mockFetchIOUsage);
@@ -256,7 +260,8 @@ public class StreamResultTest {
     public void testQueryStatsHasExecuteNullFetch() throws IOException, InterruptedException, ExecutionException {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
-        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString()).get()).thenReturn(mockFetchResult);
+        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString())).thenReturn(mockFetchResultFuture);
+        Mockito.when(mockFetchResultFuture.get()).thenReturn(mockFetchResult);
         Mockito.when(mockFetchResult.page()).thenReturn(mockFetchPage);
 
         Mockito.when(mockStatementResult.consumedIOs()).thenReturn(mockExecuteIOUsage);
@@ -291,7 +296,8 @@ public class StreamResultTest {
     public void testQueryStatsHasExecuteHasFetch() throws IOException, InterruptedException, ExecutionException {
         mockValues = MockResponses.createByteValues(Collections.singletonList(SYSTEM.singleValue(STR)));
         Mockito.when(mockPage.values()).thenReturn(mockValues);
-        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString()).get()).thenReturn(mockFetchResult);
+        Mockito.when(mockSession.sendFetchPage(Mockito.anyString(), Mockito.anyString())).thenReturn(mockFetchResultFuture);
+        Mockito.when(mockFetchResultFuture.get()).thenReturn(mockFetchResult);
         Mockito.when(mockFetchResult.page()).thenReturn(mockFetchPage);
 
         Mockito.when(mockStatementResult.consumedIOs()).thenReturn(mockExecuteIOUsage);

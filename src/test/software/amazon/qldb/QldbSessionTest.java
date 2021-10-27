@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -27,6 +28,7 @@ import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHandler;
 import software.amazon.awssdk.services.qldbsessionv2.model.StatementError;
@@ -256,37 +259,32 @@ public class QldbSessionTest {
         verify(mockSession).sendAbort();
     }
 
-//    @Test
-//    @DisplayName("execute - SHOULD close transaction WHEN an unknown exception is encountered")
-//    public void testInternalExecuteWithUnknownError() throws IOException {
-//        client = spy(new MockQldbSessionClient());
-//        client.queueResponse(MockResponses.START_SESSION_RESPONSE);
-//        mockSession = Session.startSession(LEDGER, client);
-//        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
-//
-//        final RuntimeException exception = new RuntimeException("Unknown exception occurred");
-//        client.queueResponse(exception);
-//        client.queueResponse(MockResponses.ABORT_RESPONSE);
-//
-//        // Then enqueue a set of successful operations to start, execute and commit the txn
-//        String txnId = "id";
-//        QldbHash txnHash = QldbHash.toQldbHash(txnId, system);
-//        txnHash = Transaction.dot(txnHash, statement, Collections.emptyList(), system);
-//        client.queueResponse(MockResponses.startTxnResponse(txnId));
-//        client.queueResponse(MockResponses.executeResponse(ionList));
-//        client.queueResponse(MockResponses.commitTransactionResponse(ByteBuffer.wrap(txnHash.getQldbHash())));
-//
-//        assertThrows(RuntimeException.class, () -> {
-//            qldbSession.execute(txnExecutor -> {
-//                return txnExecutor.execute(statement);
-//            });
-//        });
-//
-//        final software.amazon.awssdk.services.qldbsession.model.SendCommandRequest abortRequest =
-//                software.amazon.awssdk.services.qldbsession.model.SendCommandRequest.builder().sessionToken(SESSION_TOKEN).abortTransaction(AbortTransactionRequest.builder().build()).build();
-//        verify(client, times(1)).sendCommand(
-//                eq(abortRequest));
-//    }
+    @Test
+    @DisplayName("execute - SHOULD close transaction WHEN an unknown exception is encountered")
+    public void testInternalExecuteWithUnknownError() throws IOException, ExecutionException, InterruptedException {
+        mockSession = spy(new Session(LEDGER, client));
+        mockSession.startSessionStream().get();
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
+
+        final RuntimeException exception = new RuntimeException("Unknown exception occurred");
+        client.queueResponse(exception);
+        client.queueResponse(MockResponses.ABORT_TRANSACTION_RESULT);
+
+        // Then enqueue a set of successful operations to start, execute and commit the txn
+        String txnId = "id";
+        client.queueResponse(MockResponses.startTxnResponse(txnId));
+        client.queueResponse(MockResponses.executeResponse(ionList));
+        client.queueResponse(MockResponses.commitTransactionResponse(txnId));
+
+        assertThrows(RuntimeException.class, () -> {
+            qldbSession.execute(txnExecutor -> {
+                return txnExecutor.execute(statement);
+            });
+        });
+
+        final AbortTransactionRequest abortRequest =AbortTransactionRequest.builder().build();
+        verify(mockSession, times(1)).sendAbort();
+    }
 
     @Test
     @DisplayName("execute - SHOULD bubble up exception with failed abort flag WHEN QLDB fails to abort transaction")

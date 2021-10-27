@@ -22,10 +22,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionResult;
-import software.amazon.awssdk.services.qldbsessionv2.model.StatementError;
-import software.amazon.awssdk.services.qldbsessionv2.model.TransactionError;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.ExecuteException;
 import software.amazon.qldb.exceptions.QldbDriverException;
@@ -74,13 +73,22 @@ class QldbSession {
             }
             txn.commit();
             return returnedValue;
-        } catch (TransactionException|StatementException|SdkClientException sce) {
+        } catch (TransactionException|StatementException ee) {
             // TransactionException and StatementException should be retried with a new transaction
+            throw new ExecuteException(
+                    ee,
+                    true,
+                    this.tryAbort(txn),
+                    false,
+                    txnId
+            );
+        } catch (SdkClientException sce) {
             // SdkClientException means that client couldn't reach out QLDB so transaction should be retried.
+            // TODO: Retry transaction instead of giving up session.
             throw new ExecuteException(
                     sce,
                     true,
-                    this.tryAbort(txn),
+                    false,
                     false,
                     txnId
             );
@@ -122,7 +130,7 @@ class QldbSession {
             Thread.currentThread().interrupt();
             throw QldbDriverException.create(Errors.GET_COMMAND_RESULT_INTERRUPTED.get());
         } catch (ExecutionException ee) {
-            throw (QldbSessionV2Exception)ee.getCause();
+            throw (SdkException)ee.getCause();
         }
     }
 

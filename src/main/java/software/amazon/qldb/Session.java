@@ -7,7 +7,7 @@ import io.reactivex.rxjava3.core.BackpressureStrategy;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.annotations.ThreadSafe;
+import software.amazon.awssdk.annotations.NotThreadSafe;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.qldbsessionv2.QldbSessionV2AsyncClient;
 import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionRequest;
@@ -22,14 +22,11 @@ import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponse;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHandler;
 import software.amazon.awssdk.services.qldbsessionv2.model.StartTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.ValueHolder;
-import software.amazon.awssdk.utils.CompletableFutureUtils;
 import software.amazon.qldb.exceptions.Errors;
 import software.amazon.qldb.exceptions.QldbDriverException;
 
-import javax.xml.ws.EndpointReference;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.sql.Driver;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -42,14 +39,14 @@ import java.util.concurrent.TimeUnit;
  *
  * This object is not thread-safe.
  */
-@ThreadSafe
+@NotThreadSafe
 class Session {
     private static final Logger logger = LoggerFactory.getLogger(Session.class);
     private final String ledgerName;
     private final QldbSessionV2AsyncClient client;
     private final CompletableFuture<SendCommandResponse> connectionFuture;
     private final PublishSubject<CommandStream> commandStreamSubject;
-    private final ResultStreamSubscriber resultStreamSubscriber;
+    private final EventStreamSubscriber eventStreamSubscriber;
     private final LinkedBlockingQueue<CompletableFuture<ResultStream>> futures;
     private String sessionId;
 
@@ -59,7 +56,7 @@ class Session {
         this.connectionFuture = new CompletableFuture<>();
         this.commandStreamSubject = PublishSubject.create();
         this.futures = new LinkedBlockingQueue<>();
-        this.resultStreamSubscriber = new ResultStreamSubscriber(futures);
+        this.eventStreamSubscriber = new EventStreamSubscriber(futures);
     }
 
     CompletableFuture<SendCommandResponse> startSessionStream() {
@@ -74,12 +71,12 @@ class Session {
     private SendCommandResponseHandler getResponseHandler(){
         return SendCommandResponseHandler.builder()
             .onResponse(sendCommandResponse -> {
-                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received initial response " + sendCommandResponse);
+                logger.debug("Response handler received inital response {}", sendCommandResponse);
                 sessionId = sendCommandResponse.sessionId();
                 connectionFuture.complete(sendCommandResponse);
             })
             .onError(e -> {
-                System.err.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Error occurred while stream - " + e.getMessage());
+                logger.error("An error occurred while establishing the connection or streaming the response: {}", e.getMessage(), e);
                 if (!connectionFuture.isDone()){
                     connectionFuture.completeExceptionally(e);
                 }
@@ -94,13 +91,14 @@ class Session {
                         logger.error("Errors completing future: {}", ex.getMessage(), ex);
                     }
                 }
+                eventStreamSubscriber.onError(e);
             })
             .onComplete(() -> {
-                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: Received complete");
+                logger.debug("All data has been successfully published to event stream subscriber");
             })
             .onEventStream(publisher -> {
-                System.out.println(Thread.currentThread().getName() + " SendCommandResponseHandler: On event stream...");
-                publisher.subscribe(resultStreamSubscriber);
+                logger.debug("Events are ready to be streamed to event subscriber");
+                publisher.subscribe(eventStreamSubscriber);
             }).build();
     }
 
@@ -108,17 +106,6 @@ class Session {
         logger.debug("Sending request: {}", command);
         commandStreamSubject.onNext(command);
     }
-
-//    private CompletableFuture<ResultStream> pollResultFutureFromQueue() throws InterruptedException {
-//        final CompletableFuture<ResultStream> future = futures.poll(1000L, TimeUnit.MILLISECONDS);
-//        if (future == null) throw QldbDriverException.create(Errors.FUTURE_QUEUE_EMTPY.get());
-//
-//        if (streamFuture.isCompletedExceptionally()) {
-//            if (future.isDone()) throw QldbDriverException.create(Errors.SUBSCRIBER_ILLEGAL.get());
-//            CompletableFutureUtils.forwardExceptionTo(streamFuture, future);
-//        }
-//        return future;
-//    }
 
     CompletableFuture<ResultStream> sendStartTransaction() {
         final StartTransactionRequest startTransactionRequest = CommandStream.startTransactionBuilder().build();

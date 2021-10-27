@@ -17,6 +17,7 @@ import com.amazon.ion.IonValue;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exception;
 import software.amazon.qldb.exceptions.TransactionAbortedException;
 
@@ -58,7 +59,7 @@ public class TransactionExecutor implements Executable {
         try {
             return transaction.execute(statement);
         } catch (ExecutionException e) {
-            throw (QldbSessionV2Exception)e.getCause();
+            throw (SdkException)e.getCause();
         }
     }
 
@@ -78,7 +79,7 @@ public class TransactionExecutor implements Executable {
         try {
             return transaction.execute(statement, parameters);
         } catch (ExecutionException e) {
-            throw (QldbSessionV2Exception)e.getCause();
+            throw (SdkException)e.getCause();
         }
     }
 
@@ -98,7 +99,7 @@ public class TransactionExecutor implements Executable {
         try {
             return transaction.execute(statement, parameters);
         } catch (ExecutionException e) {
-            throw (QldbSessionV2Exception)e.getCause();
+            throw (SdkException)e.getCause();
         }
     }
 

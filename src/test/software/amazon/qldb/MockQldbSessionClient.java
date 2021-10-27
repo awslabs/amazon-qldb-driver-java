@@ -72,12 +72,17 @@ public class MockQldbSessionClient implements QldbSessionV2AsyncClient {
             while (resultQueue.peek() != null) {
                 Holder holder = resultQueue.remove();
                 if (holder.exception != null) {
+                    try {
+                        Thread.sleep(3000L);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                     throw new CompletionException(holder.exception);
                 } else if (holder.response != null) {
                     asyncResponseHandler.responseReceived(holder.response);
-                } else if (holder.result != null) {
                     final SdkPublisher<ResultStream> sdkPublisher = SdkPublisher.adapt(resultToDeliver.toFlowable(BackpressureStrategy.ERROR));
                     asyncResponseHandler.onEventStream(sdkPublisher);
+                } else if (holder.result != null) {
                     resultToDeliver.onNext(holder.result);
                 }
             }
