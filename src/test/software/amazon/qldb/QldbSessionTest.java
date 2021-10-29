@@ -83,8 +83,7 @@ public class QldbSessionTest {
     @DisplayName("close - SHOULD end session on QLDB WHEN closing the session")
     public void testClose() throws ExecutionException, InterruptedException {
         client.queueResponse(MockResponses.END_SESSION_RESULT);
-        mockSession = new Session(LEDGER, client);
-        mockSession.startSessionStream().get();
+        mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         qldbSession.close();
     }
@@ -93,8 +92,7 @@ public class QldbSessionTest {
     @DisplayName("close - SHOULD close the session WHEN QLDB throws an exception when ending the session")
     public void testEndSessionOnException() throws ExecutionException, InterruptedException {
         client.queueResponse(TransactionError.builder().message("an error").build());
-        mockSession = new Session(LEDGER, client);
-        mockSession.startSessionStream().get();
+        mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         qldbSession.close();
     }
@@ -105,8 +103,7 @@ public class QldbSessionTest {
         client.queueResponse(MockResponses.transactionErrorResponse("Transaction Error", ""));
         client.queueResponse(MockResponses.ABORT_TRANSACTION_RESULT);
 
-        mockSession = new Session(LEDGER, client);
-        mockSession.startSessionStream().get();
+        mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         assertThrows(ExecuteException.class, () -> {
@@ -174,8 +171,7 @@ public class QldbSessionTest {
     public void testExecuteExecutorLambdaWithReturnValueNoRetry() throws IOException, ExecutionException, InterruptedException {
         queueTxnExecCommit(ionList);
 
-        mockSession = new Session(LEDGER, client);
-        mockSession.startSessionStream().get();
+        mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         final Result result = qldbSession.execute(txnExecutor -> {
@@ -193,8 +189,7 @@ public class QldbSessionTest {
     public void testExecuteExecutorLambdaWithNonBufferedResultAndReturnValue() throws IOException, ExecutionException, InterruptedException {
         queueTxnExecCommit(ionList);
 
-        mockSession = new Session(LEDGER, client);
-        mockSession.startSessionStream().get();
+        mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         final Result result = qldbSession.execute(txnExecutor -> txnExecutor.execute(statement));
@@ -214,8 +209,7 @@ public class QldbSessionTest {
         client.queueResponse(MockResponses.startTxnResponse("id"));
         client.queueResponse(MockResponses.executeResponse(ionList));
         client.queueResponse(MockResponses.ABORT_TRANSACTION_RESULT);
-        mockSession = spy(new Session(LEDGER, client));
-        mockSession.startSessionStream().get();
+        mockSession = spy(Session.startSession(LEDGER, client));
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         assertThrows(TransactionAbortedException.class, () -> {
@@ -232,7 +226,6 @@ public class QldbSessionTest {
         });
 
         verify(client, times(1)).sendCommand(any(SendCommandRequest.class), any(Publisher.class), any(SendCommandResponseHandler.class));
-        verify(mockSession).startSessionStream();
         verify(mockSession).sendStartTransaction();
         verify(mockSession).sendExecute(any(String.class), any(List.class), any(String.class));
         verify(retryPolicy, never()).backoffStrategy();
@@ -244,8 +237,7 @@ public class QldbSessionTest {
         client.queueResponse(MockResponses.startTxnResponse("id"));
         client.queueResponse(StatementError.builder().message("an Error1").build());
         client.queueResponse(MockResponses.ABORT_TRANSACTION_RESULT);
-        mockSession = spy(new Session(LEDGER, client));
-        mockSession.startSessionStream().get();
+        mockSession = spy(Session.startSession(LEDGER, client));
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         assertThrows(ExecuteException.class, () -> {
@@ -262,8 +254,7 @@ public class QldbSessionTest {
     @Test
     @DisplayName("execute - SHOULD close transaction WHEN an unknown exception is encountered")
     public void testInternalExecuteWithUnknownError() throws IOException, ExecutionException, InterruptedException {
-        mockSession = spy(new Session(LEDGER, client));
-        mockSession.startSessionStream().get();
+        mockSession = spy(Session.startSession(LEDGER, client));
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         final RuntimeException exception = new RuntimeException("Unknown exception occurred");
@@ -293,8 +284,7 @@ public class QldbSessionTest {
         client.queueResponse(MockResponses.transactionErrorResponse("an Error1", ""));
         client.queueResponse(MockResponses.transactionErrorResponse("an Error2", ""));
 
-        mockSession = new Session(LEDGER, client);
-        mockSession.startSessionStream().get();
+        mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         try {

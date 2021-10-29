@@ -57,7 +57,7 @@ class QldbDriverImpl implements QldbDriver {
 
     private final int readAhead;
     private final ExecutorService executorService;
-    private final QldbSessionV2AsyncClient amazonQldbSession;
+    private final QldbSessionV2AsyncClient client;
     private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
@@ -92,7 +92,7 @@ class QldbDriverImpl implements QldbDriver {
                              IonSystem ionSystem,
                              ExecutorService executorService) {
         this.ledgerName = ledgerName;
-        this.amazonQldbSession = qldbSessionClient;
+        this.client = qldbSessionClient;
         this.retryPolicy = retryPolicy;
         this.ionSystem = ionSystem;
         this.isClosed = new AtomicBoolean(false);
@@ -226,10 +226,9 @@ class QldbDriverImpl implements QldbDriver {
     }
 
     private QldbSession createNewSession() {
-        final Session session = new Session(ledgerName, amazonQldbSession);
         try {
             // block for starting a stream within the session.
-            session.startSessionStream().get();
+            Session session = Session.startSession(ledgerName, client);
             return new QldbSession(session, readAhead, ionSystem, executorService);
         } catch (ExecutionException ee) {
             throw new ExecuteException((RuntimeException) ee.getCause(), true, false, true, "None");
