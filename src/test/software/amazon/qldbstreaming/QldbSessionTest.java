@@ -36,7 +36,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.services.qldbsessionv2.model.AbortTransactionRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandRequest;
 import software.amazon.awssdk.services.qldbsessionv2.model.SendCommandResponseHandler;
 import software.amazon.awssdk.services.qldbsessionv2.model.StatementError;
@@ -81,6 +80,7 @@ public class QldbSessionTest {
     @DisplayName("close - SHOULD end session on QLDB WHEN closing the session")
     public void testClose() throws ExecutionException, InterruptedException {
         client.queueResponse(MockResponses.END_SESSION_RESULT);
+
         mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         qldbSession.close();
@@ -90,6 +90,7 @@ public class QldbSessionTest {
     @DisplayName("close - SHOULD close the session WHEN QLDB throws an exception when ending the session")
     public void testEndSessionOnException() throws ExecutionException, InterruptedException {
         client.queueResponse(TransactionError.builder().message("an error").build());
+
         mockSession = Session.startSession(LEDGER, client);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         qldbSession.close();
@@ -110,6 +111,7 @@ public class QldbSessionTest {
         });
     }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    @Test
 //    @DisplayName("execute - SHOULD not call the executor lambda WHEN QLDB throws an InvalidSessionException when starting the "
 //                 + "transaction")
@@ -132,6 +134,7 @@ public class QldbSessionTest {
 //        });
 //    }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    @Test
 //    @DisplayName("execute - SHOULD wrap exception for retry WHEN executing a statement QLDB throws a "
 //                 + "InvalidSessionException")
@@ -254,9 +257,6 @@ public class QldbSessionTest {
     @Test
     @DisplayName("execute - SHOULD close transaction WHEN an unknown exception is encountered")
     public void testInternalExecuteWithUnknownError() throws IOException, ExecutionException, InterruptedException {
-        mockSession = spy(Session.startSession(LEDGER, client));
-        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
-
         final RuntimeException exception = new RuntimeException("Unknown exception occurred");
         client.queueResponse(exception);
         client.queueResponse(MockResponses.ABORT_TRANSACTION_RESULT);
@@ -267,13 +267,15 @@ public class QldbSessionTest {
         client.queueResponse(MockResponses.executeResponse(ionList));
         client.queueResponse(MockResponses.commitTransactionResponse(txnId));
 
+        mockSession = spy(Session.startSession(LEDGER, client));
+        qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
+
         assertThrows(RuntimeException.class, () -> {
             qldbSession.execute(txnExecutor -> {
                 return txnExecutor.execute(statement);
             });
         });
 
-        final AbortTransactionRequest abortRequest = AbortTransactionRequest.builder().build();
         verify(mockSession, times(1)).sendAbort();
     }
 

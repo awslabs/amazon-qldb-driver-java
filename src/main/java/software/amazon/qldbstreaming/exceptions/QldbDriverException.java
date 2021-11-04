@@ -21,6 +21,7 @@ import software.amazon.awssdk.services.qldbsessionv2.model.QldbSessionV2Exceptio
  * driver not able to create a Qldb Hash or a not able to initialize the execution
  * of a transaction due to a client-side problem.
  */
+// TODO: Rework on the hierarchy of QldbDriverException.
 public class QldbDriverException extends QldbSessionV2Exception {
     private static String TXN_TOKEN_PREFIX = System.lineSeparator() + "TransactionId: ";
 

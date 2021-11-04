@@ -145,6 +145,7 @@ public class QldbDriverImplTest {
         assertTrue(returnedValue);
     }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    /**
 //     * When a session in the pool throws InvalidSessionException, the driver goes to the next session
 //     * in the pool and executes the transaction
@@ -216,6 +217,7 @@ public class QldbDriverImplTest {
     }
 
 
+    // TODO: Uncomment until Relay exception model is finalized
     /**
      * When a session in the pool throws InvalidSessionException, the driver goes to the next session
      * in the pool and executes the transaction
@@ -283,6 +285,7 @@ public class QldbDriverImplTest {
         verify(spyDriver).execute(eq(executorNoReturn), eq(retryPolicy));
     }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    @Test
 //    public void testExecuteStatementOccConflict() throws IOException {
 //        int retryLimit = 3;
@@ -337,6 +340,7 @@ public class QldbDriverImplTest {
         });
     }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    @Test
 //    public void testExecuteStatementTransactionNotExpired() throws IOException {
 //        int retryLimit = 3;
@@ -481,6 +485,7 @@ public class QldbDriverImplTest {
         });
     }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    @Test
 //    @DisplayName("execute - SHOULD retry up to retry limit WHEN QLDB throws OCC Errors")
 //    public void testExecuteExecutorLambdaWithReturnValueOccConflict() throws IOException {
@@ -705,15 +710,9 @@ public class QldbDriverImplTest {
             .transactionRetryPolicy(mockRetryPolicy)
             .build();
 
-        final CapacityExceededException cce = CapacityExceededException
-            .builder()
-            .statusCode(503)
-            .message("Capacity Exceeded Exception")
-            .build();
-
         mockClient.queueResponse(MockResponses.SEND_COMMAND_RESPONSE);
         mockClient.queueResponse(MockResponses.startTxnResponse("txid"));
-        mockClient.queueResponse(cce);
+        mockClient.queueResponse(MockResponses.transactionErrorResponse("Retryable exception", ""));
         // Queue exception for abort request.
         mockClient.queueResponse(runtimeException);
 
@@ -754,6 +753,7 @@ public class QldbDriverImplTest {
         mockClient.queueResponse(MockResponses.ABORT_TRANSACTION_RESULT);
     }
 
+    // TODO: Uncomment until Relay exception model is finalized
 //    private void queueTxnExecOccError(String id) throws IOException {
 //        mockClient.queueResponse(MockResponses.startTxnResponse(id));
 //        mockClient.queueResponse(MockResponses.executeResponse(ionList));

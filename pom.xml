@@ -89,7 +89,7 @@
         <nexus.staging.maven.plugin.version>1.6.7</nexus.staging.maven.plugin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <properties.maven.plugin.version>1.0.0</properties.maven.plugin.version>
-        <slf4j.version>1.7.21</slf4j.version>
+        <slf4j.version>1.7.26</slf4j.version>
     </properties>
 
     <dependencies>
@@ -114,6 +114,12 @@
             <version>${ion.hash.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <!-- Add No-Op fallback for slf4j-api 1.6+-->
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>${slf4j.version}</version>

@@ -230,7 +230,11 @@ class QldbDriverImpl implements QldbDriver {
             Session session = Session.startSession(ledgerName, client);
             return new QldbSession(session, readAhead, ionSystem, executorService);
         } catch (ExecutionException ee) {
-            throw new ExecuteException((RuntimeException) ee.getCause(), true, false, true, "None");
+            if (ee.getCause() instanceof SdkException) {
+                throw new ExecuteException((SdkException) ee.getCause(), true, false, false, "None");
+            } else {
+                throw new ExecuteException((RuntimeException) ee.getCause(), false, false, false, "None");
+            }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw QldbDriverException.create(Errors.GET_CONNECTION_INTERRUPTED.get());

@@ -71,10 +71,20 @@ class QldbSession {
             }
             txn.commit();
             return returnedValue;
-        } catch (TransactionException | StatementException ee) {
-            // TransactionException and StatementException should be retried with a new transaction
+        } catch (TransactionException te) {
+            // TransactionException should be retried with a new transaction.
             throw new ExecuteException(
-                ee,
+                te,
+                true,
+                this.tryAbort(txn),
+                false,
+                txnId
+            );
+        } catch (StatementException se) {
+            // TODO: This is a placeholder exception until error handling is reworked
+            // TODO: Should be handled at inner layer to retry the statement within the transaction.
+            throw new ExecuteException(
+                se,
                 true,
                 this.tryAbort(txn),
                 false,
@@ -82,7 +92,6 @@ class QldbSession {
             );
         } catch (SdkClientException sce) {
             // SdkClientException means that client couldn't reach out QLDB so transaction should be retried.
-            // TODO: Retry transaction instead of giving up session.
             throw new ExecuteException(
                 sce,
                 true,

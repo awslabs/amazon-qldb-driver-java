@@ -98,7 +98,7 @@ class Transaction {
     }
 
     /**
-     * <p>Commit the transaction. Any open {@link software.amazon.qldb.Result} created by the transaction will be closed.</p>
+     * <p>Commit the transaction. Any open {@link Result} created by the transaction will be closed.</p>
      *
      * <p>If QLDB detects that there has been an optimistic concurrency control conflict (failed validation check to
      * ensure no other committed transaction has modified data that was read) then an OccConflictException will be

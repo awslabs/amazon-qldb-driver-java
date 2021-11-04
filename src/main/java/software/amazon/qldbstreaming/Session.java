@@ -66,7 +66,7 @@ class Session {
     }
 
     private void sendCommand(CommandStream command) {
-        logger.info("Sending request: {}", command);
+        logger.debug("Sending request: {}", command);
         commandStreamPublishSubject.onNext(command);
     }
 
@@ -98,11 +98,11 @@ class Session {
     ) {
         return SendCommandResponseHandler.builder()
             .onResponse(sendCommandResponse -> {
-                logger.info("Response handler received inital response {}", sendCommandResponse);
+                logger.debug("Response handler received inital response {}", sendCommandResponse);
                 connectionFuture.complete(sendCommandResponse);
             })
             .onError(e -> {
-                logger.info("An error occurred while establishing the connection or streaming the response: {}", e.getMessage(),
+                logger.error("An error occurred while establishing the connection or streaming the response: {}", e.getMessage(),
                     e);
                 if (!connectionFuture.isDone()) {
                     connectionFuture.completeExceptionally(e);
@@ -119,11 +119,11 @@ class Session {
                 }
             })
             .onEventStream(publisher -> {
-                logger.info("Events are ready to be streamed to event resultStreamSubscriber");
+                logger.debug("Events are ready to be streamed to event resultStreamSubscriber");
                 publisher.subscribe(resultStreamSubscriber);
             })
             .onComplete(() -> {
-                logger.info("All data has been successfully published to event stream resultStreamSubscriber");
+                logger.debug("All data has been successfully published to event stream resultStreamSubscriber");
                 commandStreamPublishSubject.onComplete();
                 resultStreamSubscriber.onComplete();
             }).build();

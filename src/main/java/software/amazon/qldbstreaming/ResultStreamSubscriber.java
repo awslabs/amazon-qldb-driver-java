@@ -35,7 +35,7 @@ class ResultStreamSubscriber extends DefaultSubscriber<ResultStream> {
 
     @Override
     public void onNext(ResultStream resultStream) {
-        logger.info("Subscriber received result {} from the stream. ", resultStream);
+        logger.debug("Subscriber received result {} from the stream. ", resultStream);
 
         final CompletableFuture<ResultStream> future;
         try {
@@ -63,7 +63,7 @@ class ResultStreamSubscriber extends DefaultSubscriber<ResultStream> {
 
     @Override
     public void onComplete() {
-        logger.info("Subscriber is terminated successfully");
+        logger.debug("Subscriber is terminated successfully");
         cancel();
     }
 }
