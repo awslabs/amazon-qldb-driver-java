@@ -32,24 +32,12 @@ Please see the [Quickstart guide for the Amazon QLDB Driver for Java](https://do
 ### See also
 
 1. [Getting Started with Amazon QLDB Java Driver](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.html) A guide that gets you started with executing transactions with the QLDB Java driver.
-2. [QLDB Java Driver Cookbook](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-cookbook-java.html) The cookbook provides code samples for some simple QLDB Java driver use cases. 
-3. [Amazon QLDB Java Driver Tutorial](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.tutorial.html): In this tutorial, you use the QLDB Driver for Java to create an Amazon QLDB ledger and populate it with tables and sample data.
-4. [Amazon QLDB Java Driver Samples](https://github.com/aws-samples/amazon-qldb-dmv-sample-java): A DMV based example application which demonstrates how to use QLDB with the QLDB Driver for Java.
-5. QLDB Java driver accepts and returns [Amazon ION](http://amzn.github.io/ion-docs/) Documents. Amazon Ion is a richly-typed, self-describing, hierarchical data serialization format offering interchangeable binary and text representations.
-6. [Amazon ION Cookbook](http://amzn.github.io/ion-docs/guides/cookbook.html): This cookbook provides code samples for some simple Amazon Ion use cases.
-2. **Using PartiQL** &mdash; Amazon QLDB uses PartiQL to send requests to the ledger database. You can get started with 
-the [PartiQL Tutorial](https://PartiQL.org/tutorial.html). Also read the [PartiQL Reference](https://docs.aws.amazon.com/en_pv/qldb/latest/developerguide/ql-reference.html) from the Amazon QLDB Developer Guide.
-8. Refer the section [Common Errors while using the Amazon QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) which describes runtime errors that can be thrown by the Amazon QLDB Driver when calling the qldb-session APIs.
-6. **Driver Recommendations** &mdash; Check them out in the [Best Practices](https://docs.aws.amazon.com/qldb/latest/developerguide/driver.best-practices.html) 
-in the QLDB documentation.
-1. **Exception handling when using QLDB Drivers** &mdash; Refer to the section [Common Errors while using the Amazon 
-QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) 
-which describes runtime exceptions that can be thrown by the Amazon QLDB Driver when calling the qldb-session APIs.
-1. **Using Amazon Ion Java** &mdash; Amazon Ion is a richly-typed, self-describing, hierarchical data serialization 
-format offering interchangeable binary and text representations. For more information read the [Ion docs](http://amzn.GitHub.io/ion-docs/) for [Amazon Ion Java](https://github.com/amzn/ion-java).
+1. [QLDB Java Driver Cookbook](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-cookbook-java.html) The cookbook provides code samples for some simple QLDB Java driver use cases. 
+1. [Amazon QLDB Java Driver Tutorial](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started.java.tutorial.html): In this tutorial, you use the QLDB Driver for Java to create an Amazon QLDB ledger and populate it with tables and sample data.
+1. [Amazon QLDB Java Driver Samples](https://github.com/aws-samples/amazon-qldb-dmv-sample-java): A DMV based example application which demonstrates how to use QLDB with the QLDB Driver for Java.
+1. QLDB Java driver accepts and returns [Amazon ION](http://amzn.github.io/ion-docs/) Documents. Amazon Ion is a richly-typed, self-describing, hierarchical data serialization format offering interchangeable binary and text representations. For more information read the [ION docs](https://readthedocs.org/projects/ion-python/).
+1. Amazon QLDB supports the [PartiQL](https://partiql.org/) query language. PartiQL provides SQL-compatible query access across multiple data stores containing structured data, semistructured data, and nested data. For more information read the [PartiQL docs](https://partiql.org/docs.html).
 1. Refer the section [Common Errors while using the Amazon QLDB Drivers](https://docs.aws.amazon.com/qldb/latest/developerguide/driver-errors.html) which describes runtime errors that can be thrown by the Amazon QLDB Driver when calling the qldb-session APIs.
-
-
 
 ## Development
 
