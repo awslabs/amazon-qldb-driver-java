@@ -74,7 +74,7 @@
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
         <junit.jupiter.version>5.8.2</junit.jupiter.version>
         <maven-checkstyle-plugin.version>3.1.1</maven-checkstyle-plugin.version>
-        <maven.antrun.plugin.version>1.8</maven.antrun.plugin.version>
+        <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
         <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
         <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
         <maven.failsafe.plugin.version>2.22.0</maven.failsafe.plugin.version>
