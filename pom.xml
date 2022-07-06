@@ -70,7 +70,7 @@
         <ion.hash.version>1.0.0</ion.hash.version>
         <ion.version>1.9.4</ion.version>
         <jacoco.maven.plugin.version>0.8.8</jacoco.maven.plugin.version>
-        <jdkVersion>1.8</jdkVersion>
+        <jdkVersion>11</jdkVersion>
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
         <junit.jupiter.version>5.8.2</junit.jupiter.version>
         <maven-checkstyle-plugin.version>3.1.2</maven-checkstyle-plugin.version>
@@ -149,8 +149,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven.compiler.plugin.version}</version>
                 <configuration>
-                    <source>${jdkVersion}</source>
-                    <target>${jdkVersion}</target>
+                    <release>${jdkVersion}</release>
                 </configuration>
             </plugin>
             <plugin>

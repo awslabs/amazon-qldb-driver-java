@@ -15,13 +15,14 @@ jobs:
     strategy: 
       matrix : 
         os: [ubuntu-latest, windows-latest]
-        java: [8, 11]
+        java: [11, 17]
     
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up JDK 
-      uses: actions/setup-java@v1
+    - uses: actions/checkout@v3
+    - name: Set up JDK
+      uses: actions/setup-java@v3
       with:
+        distribution: 'corretto'
         java-version: ${{ matrix.java }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
