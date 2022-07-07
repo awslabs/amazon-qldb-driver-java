@@ -12,16 +12,18 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    strategy: 
+    strategy:
+      max-parallel: 3
       matrix : 
-        os: [ubuntu-latest, windows-latest]
-        java: [8, 11]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        java: [11, 17]
     
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up JDK 
-      uses: actions/setup-java@v1
+    - uses: actions/checkout@v3
+    - name: Set up JDK
+      uses: actions/setup-java@v3
       with:
+        distribution: 'corretto'
         java-version: ${{ matrix.java }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -30,7 +32,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
     - name: Build with Maven
-      run: mvn -B package --file pom.xml -D region=us-east-1 -D ledgerSuffix=${{ matrix.java}}-${{ matrix.os }}
+      run: mvn -B package --file pom.xml -D region=us-east-2 -D ledgerSuffix=${{ matrix.java}}-${{ matrix.os }}
     - name: Upload code coverage
       run: bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}
       shell: bash
