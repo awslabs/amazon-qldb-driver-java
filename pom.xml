@@ -65,7 +65,7 @@
     <properties>
         <aws.java.sdk.version>2.17.230</aws.java.sdk.version>
         <build.year>${maven.build.timestamp}</build.year>
-        <checkstyle.version>10.3.1</checkstyle.version>
+        <checkstyle.version>10.3.2</checkstyle.version>
         <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
         <ion.hash.version>1.0.0</ion.hash.version>
         <ion.version>1.9.4</ion.version>
