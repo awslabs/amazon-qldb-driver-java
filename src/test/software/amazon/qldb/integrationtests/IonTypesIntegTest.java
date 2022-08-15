@@ -51,7 +51,7 @@ public class IonTypesIntegTest {
     private static ValueFactory valueFactory = IonSystemBuilder.standard().build();
 
     @BeforeAll
-    private static void setup() throws InterruptedException {
+    public static void setup() throws InterruptedException {
         ledgerManager = new LedgerManager(Constants.LEDGER_NAME+System.getProperty("ledgerSuffix"), System.getProperty("region"));
 
         ledgerManager.runCreateLedger();
@@ -78,7 +78,7 @@ public class IonTypesIntegTest {
     }
 
     @AfterAll
-    private static void cleanup() throws Exception {
+    public static void cleanup() throws Exception {
         ledgerManager.deleteLedger();
         driver.close();
     }

@@ -63,16 +63,16 @@
     </distributionManagement>
 
     <properties>
-        <aws.java.sdk.version>2.17.230</aws.java.sdk.version>
+        <aws.java.sdk.version>2.17.249</aws.java.sdk.version>
         <build.year>${maven.build.timestamp}</build.year>
-        <checkstyle.version>10.3.1</checkstyle.version>
+        <checkstyle.version>10.3.2</checkstyle.version>
         <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
         <ion.hash.version>1.0.0</ion.hash.version>
         <ion.version>1.9.4</ion.version>
         <jacoco.maven.plugin.version>0.8.8</jacoco.maven.plugin.version>
         <jdkVersion>11</jdkVersion>
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
-        <junit.jupiter.version>5.8.2</junit.jupiter.version>
+        <junit.jupiter.version>5.9.0</junit.jupiter.version>
         <maven-checkstyle-plugin.version>3.1.2</maven-checkstyle-plugin.version>
         <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
         <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
@@ -82,7 +82,7 @@
         <maven.javadoc.plugin.version>3.4.0</maven.javadoc.plugin.version>
         <maven.jxr.plugin.verision>3.2.0</maven.jxr.plugin.verision>
         <maven.pmd.plugin.version>3.17.0</maven.pmd.plugin.version>
-        <maven.site.plugin.version>3.12.0</maven.site.plugin.version>
+        <maven.site.plugin.version>3.12.1</maven.site.plugin.version>
         <maven.source.plugin.version>3.2.1</maven.source.plugin.version>
         <maven.surefire.plugin.version>3.0.0-M7</maven.surefire.plugin.version>
         <mockito.core.version>4.6.1</mockito.core.version>
