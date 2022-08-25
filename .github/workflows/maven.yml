@@ -34,7 +34,7 @@ jobs:
     - name: Build with Maven
       run: |
         GITHUB_SHA_SHORT=$(git rev-parse --short $GITHUB_SHA)
-        mvn -B package --file pom.xml -D region=us-east-2 -D ledgerSuffix=${{ matrix.java}}-${{ matrix.os }}-$GITHUB_SHA_SHORT
+        mvn -B package --file pom.xml -D region=us-east-2 -D ledgerSuffix=-${{ strategy.job-index }}-$GITHUB_SHA_SHORT
     - name: Upload code coverage
       run: bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}
       shell: bash
