@@ -19,6 +19,8 @@ import com.amazon.ion.system.IonBinaryWriterBuilder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -62,6 +64,7 @@ class Session implements AutoCloseable {
     private final String sessionToken;
     private final String sessionId;
     private final QldbSessionClient client;
+    private final Duration startTransactionTimeout;
 
     /**
      * Constructor for a session to a specific ledger.
@@ -74,12 +77,21 @@ class Session implements AutoCloseable {
      *              The initial request ID for this session to QLDB.
      * @param client
      *              The low-level session used for communication with QLDB.
+     * @param startTransactionTimeout
+     *              The duration to wait before timing out on starting a new transaction.
      */
-    private Session(String ledgerName, String sessionToken, String sessionId, QldbSessionClient client) {
+    private Session(
+            String ledgerName,
+            String sessionToken,
+            String sessionId,
+            QldbSessionClient client,
+            Duration startTransactionTimeout
+    ) {
         this.ledgerName = ledgerName;
         this.client = client;
         this.sessionToken = sessionToken;
         this.sessionId = sessionId;
+        this.startTransactionTimeout = startTransactionTimeout;
     }
 
     /**
@@ -92,16 +104,23 @@ class Session implements AutoCloseable {
      *
      * @return A newly created {@link Session}.
      */
-    static Session startSession(String ledgerName, QldbSessionClient client) {
+    static Session startSession(
+            String ledgerName,
+            QldbSessionClient client,
+            Duration startSessionTimeout,
+            Duration startTransactionTimeout
+    ) {
         final StartSessionRequest request = StartSessionRequest.builder().ledgerName(ledgerName).build();
-        final SendCommandRequest command = SendCommandRequest.builder().startSession(request).build();
+        final SendCommandRequest command = SendCommandRequest.builder().startSession(request)
+            .overrideConfiguration(c -> c.apiCallTimeout(startSessionTimeout))
+            .build();
 
         logger.debug("Sending start session request: {}", command);
         final SendCommandResponse result = client.sendCommand(command);
         final String sessionToken = result.startSession().sessionToken();
         final String sessionId = result.responseMetadata().requestId();
 
-        return new Session(ledgerName, sessionToken, sessionId, client);
+        return new Session(ledgerName, sessionToken, sessionId, client, startTransactionTimeout);
     }
 
     @Override
@@ -251,8 +270,16 @@ class Session implements AutoCloseable {
         final StartTransactionRequest request = StartTransactionRequest.builder().build();
         final SendCommandRequest.Builder command = SendCommandRequest.builder().startTransaction(request);
 
-        final SendCommandResponse result = send(command);
-        return result.startTransaction();
+        Instant now = Instant.now();
+        logger.info("Starting transaction at: " + now.toString());
+        try {
+            final SendCommandResponse result = send(command, startTransactionTimeout);
+            return result.startTransaction();
+        } finally {
+            Instant later = Instant.now();
+            logger.info("Completed transaction at: " + later.toString());
+            logger.info("Elapsed (transaction):  " + Duration.between(now, later).toSeconds());
+        }
     }
 
     /**
@@ -268,6 +295,26 @@ class Session implements AutoCloseable {
     private SendCommandResponse send(SendCommandRequest.Builder request) {
         final SendCommandRequest command = request.sessionToken(sessionToken).build();
         logger.debug("Sending request: {}", command);
+        return client.sendCommand(command);
+    }
+
+    /**
+     * Send a request to QLDB, aborting early with the given timeout.
+     *
+     * @param request
+     *              The request to send.
+     * @param timeout
+     *              The duration to wait before retrying the command (if a retry policy is set).
+     *
+     * @return The result returned by QLDB for the request.
+     * @throws OccConflictException if an OCC conflict was detected when committing a transaction.
+     * @throws InvalidSessionException when this session is invalid.
+     */
+    private SendCommandResponse send(SendCommandRequest.Builder request, Duration timeout) {
+        final SendCommandRequest command = request.sessionToken(sessionToken).overrideConfiguration(c -> {
+            c.apiCallTimeout(timeout);
+        }).build();
+        logger.debug("Sending request: {}, timeout limit: {}", command, timeout);
         return client.sendCommand(command);
     }
 }

@@ -15,6 +15,7 @@ package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.system.IonSystemBuilder;
+import java.time.Duration;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
@@ -46,6 +47,8 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
     private RetryPolicy retryPolicy = RetryPolicy.builder().build();
     private IonSystem ionSystem = DEFAULT_ION_SYSTEM;
     private SdkHttpClient.Builder httpClientBuilder;
+    private Duration startTransactionTimeout;
+    private Duration startSessionTimeout;
 
     QldbDriverImplBuilder() {
     }
@@ -89,6 +92,20 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
     public QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder) {
         Validate.notNull(httpClientBuilder, "httpClientBuilder");
         this.httpClientBuilder = httpClientBuilder;
+        return this;
+    }
+
+    @Override
+    public QldbDriverBuilder startTransactionTimeout(Duration startTransactionTimeout) {
+        Validate.notNull(startTransactionTimeout, "startTransactionTimeout");
+        this.startTransactionTimeout = startTransactionTimeout;
+        return this;
+    }
+
+    @Override
+    public QldbDriverBuilder startSessionTimeout(Duration startSessionTimeout) {
+        Validate.notNull(startSessionTimeout, "startSessionTimeout");
+        this.startSessionTimeout = startSessionTimeout;
         return this;
     }
 
@@ -178,7 +195,7 @@ class QldbDriverImplBuilder implements QldbDriverBuilder {
             clientBuilder.httpClient(new DefaultSdkHttpClientBuilder().buildWithDefaults(httpConfig));
         }
         return new QldbDriverImpl(ledgerName, clientBuilder.build(), retryPolicy, readAhead, maxConcurrentTransactions, ionSystem,
-                                  executorService);
+                                  executorService, startSessionTimeout, startTransactionTimeout);
     }
 
     private String getVersion() {

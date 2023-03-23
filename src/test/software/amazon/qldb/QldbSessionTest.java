@@ -29,6 +29,7 @@ import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonSystemBuilder;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -79,7 +80,7 @@ public class QldbSessionTest {
 
         client = new MockQldbSessionClient();
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockSession = Session.startSession(LEDGER, client);
+        mockSession = Session.startSession(LEDGER, client, null, null);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
     }
 
@@ -140,7 +141,7 @@ public class QldbSessionTest {
         RetryPolicy retryPolicy = spy(RetryPolicy.maxRetries(1));
         client = new MockQldbSessionClient();
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockSession = Session.startSession(LEDGER, client);
+        mockSession = Session.startSession(LEDGER, client, null, null);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         // Add an ISE when executing a txn
@@ -200,7 +201,7 @@ public class QldbSessionTest {
     public void testInternalExecuteWithAbortedTransaction() throws IOException {
         client = spy(new MockQldbSessionClient());
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockSession = Session.startSession(LEDGER, client);
+        mockSession = Session.startSession(LEDGER, client, null, null);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
         client.queueResponse(MockResponses.startTxnResponse("id"));
         client.queueResponse(MockResponses.executeResponse(ionList));
@@ -252,7 +253,7 @@ public class QldbSessionTest {
     public void testInternalExecuteWithUnknownError() throws IOException {
         client = spy(new MockQldbSessionClient());
         client.queueResponse(MockResponses.START_SESSION_RESPONSE);
-        mockSession = Session.startSession(LEDGER, client);
+        mockSession = Session.startSession(LEDGER, client, null, null);
         qldbSession = new QldbSession(mockSession, READ_AHEAD, system, null);
 
         final RuntimeException exception = new RuntimeException("Unknown exception occurred");

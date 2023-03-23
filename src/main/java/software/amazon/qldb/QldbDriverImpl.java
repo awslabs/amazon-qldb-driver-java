@@ -59,7 +59,8 @@ class QldbDriverImpl implements QldbDriver {
     private final RetryPolicy retryPolicy;
     private final IonSystem ionSystem;
     private final AtomicBoolean isClosed;
-
+    private final Duration startSessionTimeout;
+    private final Duration startTransactionTimeout;
 
     /**
      * Constructor for the for the pool driver. To create an instance of the QldbDriver
@@ -88,7 +89,9 @@ class QldbDriverImpl implements QldbDriver {
                              int readAhead,
                              int maxConcurrentTransactions,
                              IonSystem ionSystem,
-                             ExecutorService executorService) {
+                             ExecutorService executorService,
+                             Duration startSessionTimeout,
+                             Duration startTransactionTimeout) {
         this.ledgerName = ledgerName;
         this.amazonQldbSession = qldbSessionClient;
         this.retryPolicy = retryPolicy;
@@ -96,6 +99,8 @@ class QldbDriverImpl implements QldbDriver {
         this.isClosed = new AtomicBoolean(false);
         this.readAhead = readAhead;
         this.executorService = executorService;
+        this.startSessionTimeout = startSessionTimeout;
+        this.startTransactionTimeout = startTransactionTimeout;
 
         this.poolPermits = new Semaphore(maxConcurrentTransactions, true);
         this.pool = new LinkedBlockingQueue<>();
@@ -225,7 +230,12 @@ class QldbDriverImpl implements QldbDriver {
 
     private QldbSession createNewSession() {
         try {
-            final Session session = Session.startSession(ledgerName, amazonQldbSession);
+            final Session session = Session.startSession(
+                    ledgerName,
+                    amazonQldbSession,
+                    startSessionTimeout,
+                    startTransactionTimeout
+            );
             return new QldbSession(session, readAhead, ionSystem, executorService);
         } catch (SdkException ase) {
             throw new ExecuteException(ase, true, false, true, "None");

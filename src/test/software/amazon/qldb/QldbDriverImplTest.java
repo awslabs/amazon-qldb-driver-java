@@ -24,6 +24,7 @@ import com.amazon.ion.system.IonSystemBuilder;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -89,7 +90,8 @@ public class QldbDriverImplTest {
                                    .transactionRetryPolicy(retryPolicy)
                                    .build();
 
-        retryDriver = new QldbDriverImpl(LEDGER, mockClient, retryPolicy, 0, 50, IonSystemBuilder.standard().build(), null);
+        retryDriver = new QldbDriverImpl(LEDGER, mockClient, retryPolicy, 0, 50, IonSystemBuilder.standard().build(), null,
+                                         Duration.ofSeconds(5), Duration.ofSeconds(5));
     }
 
     @Test

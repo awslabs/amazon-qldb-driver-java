@@ -105,9 +105,9 @@ public class SessionTest {
     public void testStartSession() {
         final ArgumentCaptor<SendCommandRequest> commandCaptor = ArgumentCaptor.forClass(SendCommandRequest.class);
         final StartSessionRequest startSessionRequest = StartSessionRequest.builder().ledgerName(MOCK_LEDGER_NAME).build();
-        final SendCommandRequest startSessionCommand = SendCommandRequest.builder().startSession(startSessionRequest).build();
+        final SendCommandRequest startSessionCommand = SendCommandRequest.builder().overrideConfiguration(c -> c.apiCallTimeout(null)).startSession(startSessionRequest).build();
 
-        Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
 
         Mockito.verify(mockClient, Mockito.times(1)).sendCommand(commandCaptor.capture());
         assertEquals(startSessionCommand, commandCaptor.getValue());
@@ -123,7 +123,7 @@ public class SessionTest {
             .sessionToken(MOCK_SESSION_TOKEN)
             .build();
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendAbort();
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -139,7 +139,7 @@ public class SessionTest {
         final SendCommandRequest sendCommitCommand = SendCommandRequest.builder().commitTransaction(sendCommitRequest)
                                                                        .sessionToken(MOCK_SESSION_TOKEN).build();
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendCommit(MOCK_TXN_ID, MOCK_TXN_DIGEST.asByteBuffer());
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -155,7 +155,7 @@ public class SessionTest {
         final SendCommandRequest endSessionCommand = SendCommandRequest.builder().endSession(endSessionRequest)
                                                                        .sessionToken(MOCK_SESSION_TOKEN).build();
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendEndSession();
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -179,7 +179,7 @@ public class SessionTest {
                                                                     .sessionToken(MOCK_SESSION_TOKEN)
                                                                     .build();
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendExecute(MOCK_STATEMENT, Collections.emptyList(), MOCK_TXN_ID);
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -202,7 +202,7 @@ public class SessionTest {
                                                                     .sessionToken(MOCK_SESSION_TOKEN)
                                                                     .build();
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendExecute(MOCK_STATEMENT, MOCK_PARAMETERS, MOCK_TXN_ID);
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -222,7 +222,7 @@ public class SessionTest {
 
         final List<IonValue> MOCK_INVALID_PARAMETERS = Collections.singletonList(mockIonValue);
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
 
         assertThrows(QldbDriverException.class, () -> {
             try {
@@ -247,7 +247,7 @@ public class SessionTest {
                                                                   .sessionToken(MOCK_SESSION_TOKEN)
                                                                   .build();
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendFetchPage(MOCK_TXN_ID, MOCK_NEXT_PAGE_TOKEN);
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -262,11 +262,12 @@ public class SessionTest {
         final StartTransactionRequest startTransactionRequest = StartTransactionRequest.builder().build();
         final SendCommandRequest startTransactionCommand = SendCommandRequest.builder()
                                                                              .startTransaction(startTransactionRequest)
+                                                                             .overrideConfiguration(c -> c.apiCallTimeout(null))
                                                                              .sessionToken(MOCK_SESSION_TOKEN)
                                                                              .build();
         final ArgumentCaptor<SendCommandRequest> commandCaptor = ArgumentCaptor.forClass(SendCommandRequest.class);
 
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         session.sendStartTransaction();
 
         Mockito.verify(mockClient, Mockito.times(2)).sendCommand(commandCaptor.capture());
@@ -276,14 +277,14 @@ public class SessionTest {
 
     @Test
     public void testGetId() {
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
 
         assertEquals(session.getId(), MOCK_REQUEST_ID);
     }
 
     @Test
     public void testGetToken() {
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
 
         assertEquals(session.getToken(), MOCK_SESSION_TOKEN);
     }
@@ -291,7 +292,7 @@ public class SessionTest {
     @Test
     public void testInvalidSessionException() {
         final InvalidSessionException exception = InvalidSessionException.builder().message("").build();
-        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient);
+        final Session session = Session.startSession(MOCK_LEDGER_NAME, mockClient, null, null);
         Mockito.when(mockClient.sendCommand(ArgumentMatchers.any(SendCommandRequest.class)))
                .thenThrow(exception);
 

@@ -14,6 +14,7 @@
 package software.amazon.qldb;
 
 import com.amazon.ion.IonSystem;
+import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.qldbsession.QldbSessionClientBuilder;
@@ -190,4 +191,22 @@ public interface QldbDriverBuilder {
      * @return This builder object.
      */
     QldbDriverBuilder httpClientBuilder(SdkHttpClient.Builder httpClientBuilder);
+
+    /**
+     * <p>specify the duration before timing out on establishing a new session.</p>
+     *
+     * @param startTransactionTimeout
+     *              the duration before timing out for each retry.
+     * @return This builder object.
+     */
+    QldbDriverBuilder startTransactionTimeout(Duration startTransactionTimeout);
+
+    /**
+     * <p>specify the duration before timing out on establishing a new session.</p>
+     *
+     * @param startSessionTimeout
+     *              the duration before timing out for each retry.
+     * @return This builder object.
+     */
+    QldbDriverBuilder startSessionTimeout(Duration startSessionTimeout);
 }
