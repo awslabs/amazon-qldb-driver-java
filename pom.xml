@@ -72,7 +72,7 @@
         <jacoco.maven.plugin.version>0.8.8</jacoco.maven.plugin.version>
         <jdkVersion>11</jdkVersion>
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
-        <junit.jupiter.version>5.9.1</junit.jupiter.version>
+        <junit.jupiter.version>5.9.3</junit.jupiter.version>
         <maven-checkstyle-plugin.version>3.2.1</maven-checkstyle-plugin.version>
         <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
         <maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
