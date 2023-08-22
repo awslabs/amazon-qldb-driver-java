@@ -63,7 +63,7 @@
     </distributionManagement>
 
     <properties>
-        <aws.java.sdk.version>2.19.18</aws.java.sdk.version>
+        <aws.java.sdk.version>2.20.132</aws.java.sdk.version>
         <build.year>${maven.build.timestamp}</build.year>
         <checkstyle.version>10.9.2</checkstyle.version>
         <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
