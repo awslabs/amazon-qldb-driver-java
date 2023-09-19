@@ -68,7 +68,7 @@
         <checkstyle.version>10.9.2</checkstyle.version>
         <findbugs.maven.plugin.version>3.0.5</findbugs.maven.plugin.version>
         <ion.hash.version>1.0.0</ion.hash.version>
-        <ion.version>1.9.5</ion.version>
+        <ion.version>1.10.4</ion.version>
         <jacoco.maven.plugin.version>0.8.8</jacoco.maven.plugin.version>
         <jdkVersion>11</jdkVersion>
         <junit.jupiter.migration.support.version>5.0.0-M4</junit.jupiter.migration.support.version>
